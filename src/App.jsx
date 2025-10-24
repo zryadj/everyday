@@ -1,1 +1,1 @@
-// 当前版本 React 主组件
+PLACEHOLDER: 当前画布 App.jsx 内容将在此处插入。

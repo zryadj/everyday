@@ -1,12 +1,12 @@
 {
-  "name": "alive-budget",
+  "name": "alive-budget-stackblitz",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview --port 4173"
+    "preview": "vite preview"
   },
   "dependencies": {
     "react": "^18.3.1",
