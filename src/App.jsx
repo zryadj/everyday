@@ -483,7 +483,7 @@ export default function BudgetApp(){
         {tab === 'trash' && (
           <>
             <Card>
-              <div className="flex items-center gap-2 mb-4"><Trash2 className="w-5 h-5" /><h2 className="font-semibold">回收站</h2></div>
+              <div className="flex items-center gap-2 mb-4"><Trash2 className="w-5 h-5" /><h2 className="font-semibold">回收</h2></div>
               {trash.length===0 ? <div className="text-sm text-gray-500">空空如也～</div> : (
                 <ul className="divide-y divide-gray-100">
                   {trash.map(t=> (
