@@ -121,7 +121,7 @@ function Navbar({ tab, setTab }){
     { key: 'trend', label: '趋势', icon: LineIcon },
     { key: 'history', label: '历史', icon: History },
     { key: 'board', label: '看板', icon: PieIcon },
-    { key: 'trash', label: '回收站', icon: Trash2 },
+    { key: 'trash', label: '回收', icon: Trash2 },
   ];
   return (
     <div className="flex items-center gap-2 p-1 rounded-2xl bg-white/80 backdrop-blur ring-1 ring-black/5 w-max">
