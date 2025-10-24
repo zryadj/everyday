@@ -204,9 +204,10 @@ export default function BudgetApp(){
   function addExpense(e){
     e.preventDefault();
     const amt = parseAmount(amount);
-    if (!title.trim() || !(amt>=1)) return; // 金额从 1 起步
+    const finalTitle = title.trim() || '默认';
+    if (!(amt>=1)) return; // 金额从 1 起步
     const ts = new Date(dateStr+"T"+ new Date().toTimeString().slice(0,8)).getTime();
-    const item = { id: crypto.randomUUID(), title: title.trim(), amount: amt, ts, category };
+    const item = { id: crypto.randomUUID(), title: finalTitle, amount: amt, ts, category };
     setExpenses(prev=> [item, ...prev]);
     setTitle(""); setAmount(""); setCategory(FIXED_CATEGORIES[0].name);
   }
