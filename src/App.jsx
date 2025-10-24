@@ -1,1 +1,1 @@
-PLACEHOLDER_FOR_APP_CODE
+// 当前版本 React 主组件
