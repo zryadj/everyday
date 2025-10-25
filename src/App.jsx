@@ -9,6 +9,7 @@ import {
   History,
   PieChart as PieIcon,
   LineChart as LineIcon,
+  BarChart3,
   Pencil
 } from "lucide-react";
 
@@ -65,6 +66,20 @@ function endOfWeek(d=new Date()) { const s=startOfWeek(d); const e=new Date(s); 
 function startOfMonth(d=new Date()) { const t=new Date(d.getFullYear(), d.getMonth(), 1); t.setHours(0,0,0,0); return t; }
 function endOfMonth(d=new Date()) { const t=new Date(d.getFullYear(), d.getMonth()+1, 0); t.setHours(23,59,59,999); return t; }
 function formatCurrency(n) { return `¥${(Number(n)||0).toFixed(2)}`; }
+function formatDayLabel(iso){
+  if(!iso) return "-";
+  const parts = iso.split('-');
+  if(parts.length<3) return iso;
+  const [, m, d] = parts;
+  return `${Number(m)}月${Number(d)}日`;
+}
+function formatMonthLabel(ym){
+  if(!ym) return "-";
+  const parts = ym.split('-');
+  if(parts.length<2) return ym;
+  const [y,m] = parts;
+  return `${y}年${Number(m)}月`;
+}
 function parseAmount(v) { if (typeof v==="number") return v; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
 function parseDateInput(v){ if(!v) return null; const parts=String(v).split('-').map(Number); if(parts.length!==3) return null; const [y,m,d]=parts; const dt=new Date(y, (m||1)-1, d||1); if(!Number.isFinite(dt.getTime())) return null; return dt; }
 function generateId(){ try{ if(typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID(); }catch{} return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
@@ -205,6 +220,8 @@ export default function BudgetApp(){
   const weekEnd=endOfWeek(now).getTime();
   const monthStart=startOfMonth(now).getTime();
   const monthEnd=endOfMonth(now).getTime();
+  const yearStart=startOfDay(new Date(now.getFullYear(),0,1)).getTime();
+  const yearEnd=endOfDay(new Date(now.getFullYear(),11,31)).getTime();
 
   // ——— 新需求：表单日期驱动下方列表 ———
   const inputDate = new Date(dateStr+"T00:00:00");
@@ -216,9 +233,11 @@ export default function BudgetApp(){
 
   const expensesWeek = useMemo(()=> expenses.filter(e=> e.ts>=weekStart && e.ts<=weekEnd), [expenses]);
   const expensesMonth = useMemo(()=> expenses.filter(e=> e.ts>=monthStart && e.ts<=monthEnd), [expenses]);
+  const expensesYear = useMemo(()=> expenses.filter(e=> e.ts>=yearStart && e.ts<=yearEnd), [expenses]);
 
   const spentWeek = sum(expensesWeek);
   const spentMonth = sum(expensesMonth);
+  const spentYear = sum(expensesYear);
 
   // 预算
   const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
@@ -425,6 +444,48 @@ export default function BudgetApp(){
   const monthByCat = groupByCategory(expensesMonth);
 
   const trendData = useMemo(()=> trendDaily(expensesMonth, trendDays), [expensesMonth, trendDays]);
+  const monthDailyStats = useMemo(()=>{
+    if(expensesMonth.length===0) return { days:0, min:null, max:null, total:0, average:0 };
+    const totals=new Map();
+    for(const item of expensesMonth){
+      const iso=toISODate(item.ts);
+      totals.set(iso,(totals.get(iso)||0)+(item.amount||0));
+    }
+    const entries=Array.from(totals.entries()).map(([date,total])=>({date,total}));
+    if(entries.length===0) return { days:0, min:null, max:null, total:0, average:0 };
+    let minEntry=entries[0];
+    let maxEntry=entries[0];
+    let total=0;
+    for(const entry of entries){
+      total+=entry.total;
+      if(entry.total<minEntry.total) minEntry=entry;
+      if(entry.total>maxEntry.total) maxEntry=entry;
+    }
+    const average=total/entries.length;
+    return { days:entries.length, min:minEntry, max:maxEntry, total, average };
+  }, [expensesMonth]);
+
+  const yearMonthlyStats = useMemo(()=>{
+    if(expensesYear.length===0) return { months:0, min:null, max:null, total:0, average:0 };
+    const totals=new Map();
+    for(const item of expensesYear){
+      const date=new Date(item.ts);
+      const key=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}`;
+      totals.set(key,(totals.get(key)||0)+(item.amount||0));
+    }
+    const entries=Array.from(totals.entries()).map(([month,total])=>({month,total}));
+    if(entries.length===0) return { months:0, min:null, max:null, total:0, average:0 };
+    let minEntry=entries[0];
+    let maxEntry=entries[0];
+    let total=0;
+    for(const entry of entries){
+      total+=entry.total;
+      if(entry.total<minEntry.total) minEntry=entry;
+      if(entry.total>maxEntry.total) maxEntry=entry;
+    }
+    const average=total/entries.length;
+    return { months:entries.length, min:minEntry, max:maxEntry, total, average };
+  }, [expensesYear]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-indigo-50 text-gray-900">
@@ -618,62 +679,123 @@ export default function BudgetApp(){
           </>
         )}
 
+
         {tab === 'board' && (
           <>
-            {/* 看板统计：周饼 + 月柱（细长条，阴影高亮） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid gap-6">
               <Card>
-                <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本周分类统计</h2></div>
-                {weekByCat.length===0 ? <div className="text-sm text-gray-500">本周暂无数据</div> : (
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <defs>
-                          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                            <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.25" />
-                          </filter>
-                        </defs>
-                        <Pie dataKey="amount" name="金额" data={weekByCat} outerRadius={90} isAnimationActive activeIndex={activePieIndex}
-                          onMouseEnter={(_,i)=>setActivePieIndex(i)} onMouseLeave={()=>setActivePieIndex(-1)} onClick={(_,i)=>setActivePieIndex(i)}
-                          activeShape={(p)=>{ const {cx,cy,innerRadius,outerRadius,startAngle,endAngle,fill}=p; return <g><Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius+6} startAngle={startAngle} endAngle={endAngle} fill={fill} filter="url(#shadow)"/></g>; }} label>
-                          {weekByCat.map((entry,i)=> (<Cell key={i} fill={colorMap[entry.name]||'#999'} opacity={activePieIndex===-1 || activePieIndex===i?1:0.45}/>))}
-                        </Pie>
-                        <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
-                        <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
+                <div className="flex items-center gap-2 mb-4"><BarChart3 className="w-5 h-5" /><h2 className="font-semibold">消费统计</h2></div>
+                <div className="space-y-6">
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-sm font-semibold text-gray-700">本月单日表现</div>
+                      {monthDailyStats.days>0 && (
+                        <div className="text-xs text-gray-400">统计 {monthDailyStats.days} 天 · 日均 {formatCurrency(monthDailyStats.average)}</div>
+                      )}
+                    </div>
+                    {monthDailyStats.days===0 ? (
+                      <div className="text-sm text-gray-500">本月暂无消费记录</div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="rounded-2xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-4 shadow-sm">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-600">单日最低</div>
+                            <div className="mt-2 text-2xl font-bold text-emerald-700">{formatCurrency(monthDailyStats.min.total)}</div>
+                            <div className="mt-1 text-sm text-gray-500">{formatDayLabel(monthDailyStats.min.date)}</div>
+                          </div>
+                          <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 via-white to-white p-4 shadow-sm">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-rose-600">单日最高</div>
+                            <div className="mt-2 text-2xl font-bold text-rose-600">{formatCurrency(monthDailyStats.max.total)}</div>
+                            <div className="mt-1 text-sm text-gray-500">{formatDayLabel(monthDailyStats.max.date)}</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 text-xs text-gray-400">本月合计 {formatCurrency(spentMonth)}</div>
+                      </>
+                    )}
+                  </section>
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="text-sm font-semibold text-gray-700">本年月份表现</div>
+                      {yearMonthlyStats.months>0 && (
+                        <div className="text-xs text-gray-400">统计 {yearMonthlyStats.months} 个月 · 月均 {formatCurrency(yearMonthlyStats.average)}</div>
+                      )}
+                    </div>
+                    {yearMonthlyStats.months===0 ? (
+                      <div className="text-sm text-gray-500">今年暂无消费记录</div>
+                    ) : (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 via-white to-white p-4 shadow-sm">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-sky-600">最低月份</div>
+                            <div className="mt-2 text-2xl font-bold text-sky-700">{formatCurrency(yearMonthlyStats.min.total)}</div>
+                            <div className="mt-1 text-sm text-gray-500">{formatMonthLabel(yearMonthlyStats.min.month)}</div>
+                          </div>
+                          <div className="rounded-2xl border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-4 shadow-sm">
+                            <div className="text-xs font-semibold uppercase tracking-wide text-amber-600">最高月份</div>
+                            <div className="mt-2 text-2xl font-bold text-amber-600">{formatCurrency(yearMonthlyStats.max.total)}</div>
+                            <div className="mt-1 text-sm text-gray-500">{formatMonthLabel(yearMonthlyStats.max.month)}</div>
+                          </div>
+                        </div>
+                        <div className="mt-3 text-xs text-gray-400">全年合计 {formatCurrency(spentYear)}</div>
+                      </>
+                    )}
+                  </section>
+                </div>
               </Card>
 
-              <Card>
-                <div className="flex items中心 gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本月分类统计</h2></div>
-                {monthByCat.length===0 ? <div className="text-sm text-gray-500">本月暂无数据</div> : (
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={monthByCat} onMouseMove={(s)=>{ const p=s?.activePayload?.[0]?.payload; setActiveBarName(p?.name||null); }} onMouseLeave={()=>setActiveBarName(null)}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
-                        <Legend />
-                        <defs>
-                          <filter id="shadowBar" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="0" floodColor="#0f172a" floodOpacity="0.18" /></filter>
-                        </defs>
-                        {/* 瘦一点的长方形 */}
-                        <Bar dataKey="amount" name="金额" isAnimationActive barSize={16} radius={[5,5,0,0]}>
-                          {monthByCat.map((entry,i)=> (
-                            <Cell key={i} fill={colorMap[entry.name]||'#999'} filter={activeBarName===entry.name? 'url(#shadowBar)': undefined} opacity={activeBarName===null || activeBarName===entry.name ? 1 : 0.55} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </Card>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本周分类统计</h2></div>
+                  {weekByCat.length===0 ? <div className="text-sm text-gray-500">本周暂无数据</div> : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <defs>
+                            <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                              <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.25" />
+                            </filter>
+                          </defs>
+                          <Pie dataKey="amount" name="金额" data={weekByCat} outerRadius={90} isAnimationActive activeIndex={activePieIndex}
+                            onMouseEnter={(_,i)=>setActivePieIndex(i)} onMouseLeave={()=>setActivePieIndex(-1)} onClick={(_,i)=>setActivePieIndex(i)}
+                            activeShape={(p)=>{ const {cx,cy,innerRadius,outerRadius,startAngle,endAngle,fill}=p; return <g><Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius+6} startAngle={startAngle} endAngle={endAngle} fill={fill} filter="url(#shadow)"/></g>; }} label>
+                            {weekByCat.map((entry,i)=> (<Cell key={i} fill={colorMap[entry.name]||'#999'} opacity={activePieIndex==-1 || activePieIndex===i?1:0.45}/>))}
+                          </Pie>
+                          <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </Card>
+
+                <Card>
+                  <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本月分类统计</h2></div>
+                  {monthByCat.length===0 ? <div className="text-sm text-gray-500">本月暂无数据</div> : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={monthByCat} onMouseMove={(s)=>{ const p=s?.activePayload?.[0]?.payload; setActiveBarName(p?.name||null); }} onMouseLeave={()=>setActiveBarName(null)}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="name" />
+                          <YAxis />
+                          <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
+                          <Legend />
+                          <defs>
+                            <filter id="shadowBar" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="0" floodColor="#0f172a" floodOpacity="0.18" /></filter>
+                          </defs>
+                          {/* 瘦一点的长方形 */}
+                          <Bar dataKey="amount" name="金额" isAnimationActive barSize={16} radius={[5,5,0,0]}>
+                            {monthByCat.map((entry,i)=> (<Cell key={i} fill={colorMap[entry.name]||'#999'} filter={activeBarName===entry.name? 'url(#shadowBar)': undefined} opacity={activeBarName===null || activeBarName===entry.name ? 1 : 0.55} />))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </Card>
+              </div>
             </div>
           </>
         )}
+
 
         {tab === 'trash' && (
           <>
