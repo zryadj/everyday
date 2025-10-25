@@ -67,6 +67,16 @@ function endOfMonth(d=new Date()) { const t=new Date(d.getFullYear(), d.getMonth
 function formatCurrency(n) { return `¥${(Number(n)||0).toFixed(2)}`; }
 function parseAmount(v) { if (typeof v==="number") return v; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
 function parseDateInput(v){ if(!v) return null; const parts=String(v).split('-').map(Number); if(parts.length!==3) return null; const [y,m,d]=parts; const dt=new Date(y, (m||1)-1, d||1); if(!Number.isFinite(dt.getTime())) return null; return dt; }
+function parseDateTimeInput(v){ if(!v) return null; const dt=new Date(v); if(!Number.isFinite(dt.getTime())) return null; return dt; }
+function toDateTimeLocalValue(date){
+  if(!date) return "";
+  const dt=new Date(date);
+  if(!Number.isFinite(dt.getTime())) return "";
+  const iso=toISODate(dt);
+  const h=String(dt.getHours()).padStart(2,'0');
+  const m=String(dt.getMinutes()).padStart(2,'0');
+  return `${iso}T${h}:${m}`;
+}
 function generateId(){ try{ if(typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID(); }catch{} return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function escapeXml(v){ return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
 function buildExcelXml(rows){
@@ -109,7 +119,7 @@ function groupByCategory(list) {
 }
 const sum = (list)=> list.reduce((acc,e)=> acc+(e.amount||0), 0);
 function eachDayBetween(start, end){ const arr=[]; const d=new Date(startOfDay(start)); const e=new Date(startOfDay(end)); while (d<=e){ arr.push(new Date(d)); d.setDate(d.getDate()+1);} return arr; }
-function trendDaily(expenses, days){ const end=new Date(); const start=new Date(); start.setDate(end.getDate()-(days-1)); const daysArr=eachDayBetween(start,end); const byDate=new Map(); for (const e of expenses){ const iso=toISODate(e.ts); byDate.set(iso,(byDate.get(iso)||0)+(e.amount||0)); } return daysArr.map(d=>{ const iso=toISODate(d); return { date: iso.slice(5), value: byDate.get(iso)||0 }; }); }
+function trendDaily(expenses, days){ const end=new Date(); const start=new Date(); start.setDate(end.getDate()-(days-1)); const daysArr=eachDayBetween(start,end); const byDate=new Map(); for (const e of expenses){ const iso=toISODate(e.ts); byDate.set(iso,(byDate.get(iso)||0)+(e.amount||0)); } return daysArr.map(d=>{ const iso=toISODate(d); return { date: iso.slice(5), amount: byDate.get(iso)||0 }; }); }
 
 function Badge({children,color}){ const bg=`${color}22`; const border=`${color}55`; return <span className="px-2 py-0.5 rounded-lg text-xs font-medium" style={{backgroundColor:bg,color,border:`1px solid ${border}`}}>{children}</span>; }
 function Card({ className="", children }){ return <div className={cn("rounded-2xl bg-white/80 backdrop-blur shadow-sm ring-1 ring-black/5 p-5", className)}>{children}</div>; }
@@ -177,6 +187,7 @@ export default function BudgetApp(){
   const [category, setCategory] = useState(FIXED_CATEGORIES[0].name);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [historyJumpValue, setHistoryJumpValue] = useState(()=> toDateTimeLocalValue(new Date()));
   const [trendDays, setTrendDays] = useState(7);
   const [exportStart, setExportStart] = useState(()=> toISODate(startOfMonth(new Date())));
   const [exportEnd, setExportEnd] = useState(()=> toISODate(new Date()));
@@ -198,6 +209,7 @@ export default function BudgetApp(){
   useEffect(()=> saveSettings(settings), [settings]);
   useEffect(()=> saveExpenses(expenses), [expenses]);
   useEffect(()=> saveTrash(trash), [trash]);
+  useEffect(()=>{ setHistoryJumpValue(toDateTimeLocalValue(selectedDate)); }, [selectedDate]);
 
   // 时间范围（周/月统计仍基于今天所在周/月）
   const now=new Date();
@@ -370,6 +382,14 @@ export default function BudgetApp(){
     }
   }
 
+  function handleHistoryJump(ev){
+    ev?.preventDefault?.();
+    const dt = parseDateTimeInput(historyJumpValue);
+    if(!dt) return;
+    setSelectedDate(dt);
+    setEditingId(null);
+  }
+
   function addExpense(e){
     e.preventDefault();
     const amt = parseAmount(amount);
@@ -425,6 +445,49 @@ export default function BudgetApp(){
   const monthByCat = groupByCategory(expensesMonth);
 
   const trendData = useMemo(()=> trendDaily(expensesMonth, trendDays), [expensesMonth, trendDays]);
+  const boardStats = useMemo(()=>{
+    const nowDate=new Date();
+    const dayMs=24*60*60*1000;
+    const start30Base=new Date(nowDate.getTime());
+    start30Base.setDate(start30Base.getDate()-29);
+    const start30=startOfDay(start30Base);
+    const endNow=endOfDay(nowDate);
+    const mapByDate=new Map();
+    for (const exp of expenses){
+      const iso=toISODate(exp.ts);
+      if(!mapByDate.has(iso)) mapByDate.set(iso, []);
+      mapByDate.get(iso).push(exp);
+    }
+    for (const arr of mapByDate.values()){ arr.sort((a,b)=>a.ts-b.ts); }
+    let total30=0;
+    let minDay=null;
+    let maxDay=null;
+    const daysRange=eachDayBetween(start30, nowDate);
+    for (const day of daysRange){
+      const iso=toISODate(day);
+      const entries=mapByDate.get(iso)||[];
+      const dayTotal=entries.reduce((acc,cur)=> acc+(cur.amount||0), 0);
+      total30+=dayTotal;
+      if(dayTotal>0){
+        if(!minDay || dayTotal<minDay.total){ minDay={ date: iso, total: dayTotal, entries: entries.slice() }; }
+        if(!maxDay || dayTotal>maxDay.total){ maxDay={ date: iso, total: dayTotal, entries: entries.slice() }; }
+      }
+    }
+    const yearStartBase=new Date(nowDate.getTime()-365*dayMs);
+    const yearStart=startOfDay(yearStartBase).getTime();
+    const yearEnd=endNow.getTime();
+    let minExpense=null;
+    let maxExpense=null;
+    for (const exp of expenses){
+      if(!(exp.amount>0)) continue;
+      if(exp.ts<yearStart || exp.ts>yearEnd) continue;
+      if(!minExpense || exp.amount<minExpense.amount || (exp.amount===minExpense.amount && exp.ts<minExpense.ts)) minExpense=exp;
+      if(!maxExpense || exp.amount>maxExpense.amount || (exp.amount===maxExpense.amount && exp.ts<maxExpense.ts)) maxExpense=exp;
+    }
+    return { thirtyDay: { total: total30, minDay, maxDay }, yearly: { minExpense, maxExpense } };
+  }, [expenses]);
+  const thirtyDayStats = boardStats.thirtyDay;
+  const yearlyStats = boardStats.yearly;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-indigo-50 text-gray-900">
@@ -536,7 +599,7 @@ export default function BudgetApp(){
                     <YAxis />
                     <Tooltip formatter={(v)=>formatCurrency(v)} />
                     <Legend />
-                    <Line type="monotone" dataKey="value" stroke="#111827" strokeWidth={2} dot={false} isAnimationActive />
+                    <Line type="monotone" dataKey="amount" name="金额" stroke="#111827" strokeWidth={2} dot={false} isAnimationActive />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -551,6 +614,13 @@ export default function BudgetApp(){
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
                   <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5" /><h2 className="font-semibold">历史浏览</h2></div>
+                  <form onSubmit={handleHistoryJump} className="mb-4 space-y-2">
+                    <div className="text-sm text-gray-600">跳转日期时间</div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input type="datetime-local" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={historyJumpValue} onChange={(ev)=>setHistoryJumpValue(ev.target.value)} />
+                      <button type="submit" className="rounded-xl bg-black px-3 py-2 text-sm text-white sm:w-auto">跳转</button>
+                    </div>
+                  </form>
                   <MonthCalendar value={selectedDate} onChange={(d)=>{ setSelectedDate(d); setEditingId(null); }} expenses={expenses} />
                 </Card>
                 <Card>
@@ -670,6 +740,90 @@ export default function BudgetApp(){
                     </ResponsiveContainer>
                   </div>
                 )}
+              </Card>
+
+              <Card className="lg:col-span-2">
+                <div className="flex items-center gap-2 mb-4"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">消费统计</h2></div>
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-gray-400">近30天合计</div>
+                      <div className="text-lg font-semibold mt-1">{formatCurrency(thirtyDayStats.total)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-gray-400">单日最低</div>
+                      {thirtyDayStats.minDay ? (
+                        <div className="mt-1 space-y-2">
+                          <div className="text-sm font-medium">{thirtyDayStats.minDay.date} · {formatCurrency(thirtyDayStats.minDay.total)}</div>
+                          <ul className="space-y-1 text-xs text-gray-600">
+                            {thirtyDayStats.minDay.entries.map(item=>(
+                              <li key={item.id} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="truncate">{item.title}</span>
+                                  {item.category && (<Badge color={colorMap[item.category] || '#e5e7eb'}>{item.category}</Badge>)}
+                                </div>
+                                <span className="tabular-nums font-medium">{formatCurrency(item.amount)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-gray-400">近30天无消费记录</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-gray-400">单日最高</div>
+                      {thirtyDayStats.maxDay ? (
+                        <div className="mt-1 space-y-2">
+                          <div className="text-sm font-medium">{thirtyDayStats.maxDay.date} · {formatCurrency(thirtyDayStats.maxDay.total)}</div>
+                          <ul className="space-y-1 text-xs text-gray-600">
+                            {thirtyDayStats.maxDay.entries.map(item=>(
+                              <li key={item.id} className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="truncate">{item.title}</span>
+                                  {item.category && (<Badge color={colorMap[item.category] || '#e5e7eb'}>{item.category}</Badge>)}
+                                </div>
+                                <span className="tabular-nums font-medium">{formatCurrency(item.amount)}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-gray-400">近30天无消费记录</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-gray-400">近一年单笔最低</div>
+                      {yearlyStats.minExpense ? (
+                        <div className="mt-1 space-y-1 text-sm text-gray-600">
+                          <div className="font-medium text-gray-900">{formatCurrency(yearlyStats.minExpense.amount)} · {yearlyStats.minExpense.title}</div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                            <span>日期 {toISODate(yearlyStats.minExpense.ts)}</span>
+                            {yearlyStats.minExpense.category && (<Badge color={colorMap[yearlyStats.minExpense.category] || '#e5e7eb'}>{yearlyStats.minExpense.category}</Badge>)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-gray-400">近一年无消费记录</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-gray-400">近一年单笔最高</div>
+                      {yearlyStats.maxExpense ? (
+                        <div className="mt-1 space-y-1 text-sm text-gray-600">
+                          <div className="font-medium text-gray-900">{formatCurrency(yearlyStats.maxExpense.amount)} · {yearlyStats.maxExpense.title}</div>
+                          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+                            <span>日期 {toISODate(yearlyStats.maxExpense.ts)}</span>
+                            {yearlyStats.maxExpense.category && (<Badge color={colorMap[yearlyStats.maxExpense.category] || '#e5e7eb'}>{yearlyStats.maxExpense.category}</Badge>)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-1 text-xs text-gray-400">近一年无消费记录</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </Card>
             </div>
           </>
