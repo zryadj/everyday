@@ -540,30 +540,6 @@ export default function BudgetApp(){
         {tab === 'history' && (
           <>
             <div className="grid gap-6">
-              <Card>
-                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-                  <div>
-                    <div className="flex items-center gap-2 mb-2"><CalendarRange className="w-5 h-5" /><h2 className="font-semibold">数据导入导出</h2></div>
-                    <p className="text-xs text-gray-500">选择日期区间导出 Excel；导入同模板将按天覆盖原有数据。</p>
-                  </div>
-                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">开始</span>
-                      <input type="date" className="rounded-xl border border-gray-200 px-3 py-1" value={exportStart} max={exportEnd || undefined} onChange={ev=>setExportStart(ev.target.value)} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500">结束</span>
-                      <input type="date" className="rounded-xl border border-gray-200 px-3 py-1" value={exportEnd} min={exportStart || undefined} onChange={ev=>setExportEnd(ev.target.value)} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button className={cn("px-3 py-1.5 rounded-xl text-sm", exportDisabled?"bg-gray-200 text-gray-500 cursor-not-allowed":"bg-black text-white")} onClick={handleExport} disabled={exportDisabled}>导出 Excel</button>
-                      <button className="px-3 py-1.5 rounded-xl border text-sm" onClick={()=>fileInputRef.current?.click()}>导入 Excel</button>
-                    </div>
-                  </div>
-                  <input ref={fileInputRef} type="file" accept=".xls" className="hidden" onChange={handleImport} />
-                </div>
-              </Card>
-
               {/* 历史浏览（日历 + 当日明细，可编辑/删除） */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
@@ -607,6 +583,30 @@ export default function BudgetApp(){
                   )}
                 </Card>
               </div>
+
+              <Card>
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2"><CalendarRange className="w-5 h-5" /><h2 className="font-semibold">数据导入导出</h2></div>
+                    <p className="text-xs text-gray-500">选择日期区间导出 Excel；导入同模板将按天覆盖原有数据。</p>
+                  </div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">开始</span>
+                      <input type="date" className="rounded-xl border border-gray-200 px-3 py-1" value={exportStart} max={exportEnd || undefined} onChange={ev=>setExportStart(ev.target.value)} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">结束</span>
+                      <input type="date" className="rounded-xl border border-gray-200 px-3 py-1" value={exportEnd} min={exportStart || undefined} onChange={ev=>setExportEnd(ev.target.value)} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button className={cn("px-3 py-1.5 rounded-xl text-sm", exportDisabled?"bg-gray-200 text-gray-500 cursor-not-allowed":"bg-black text-white")} onClick={handleExport} disabled={exportDisabled}>导出 Excel</button>
+                      <button className="px-3 py-1.5 rounded-xl border text-sm" onClick={()=>fileInputRef.current?.click()}>导入 Excel</button>
+                    </div>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept=".xls" className="hidden" onChange={handleImport} />
+                </div>
+              </Card>
             </div>
           </>
         )}
