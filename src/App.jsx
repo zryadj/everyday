@@ -726,14 +726,25 @@ export default function BudgetApp(){
                         <YAxis />
                         <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
                         <Legend />
-                        <defs>
-                          <filter id="shadowBar" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="0" floodColor="#0f172a" floodOpacity="0.18" /></filter>
-                        </defs>
                         {/* 瘦一点的长方形 */}
-                        <Bar dataKey="amount" name="金额" isAnimationActive barSize={16} radius={[5,5,0,0]}>
-                          {monthByCat.map((entry,i)=> (
-                            <Cell key={i} fill={colorMap[entry.name]||'#999'} filter={activeBarName===entry.name? 'url(#shadowBar)': undefined} opacity={activeBarName===null || activeBarName===entry.name ? 1 : 0.55} />
-                          ))}
+                        <Bar dataKey="amount" name="金额" isAnimationActive animationDuration={500} barSize={16} radius={[5,5,0,0]}>
+                          {monthByCat.map((entry,i)=> {
+                            const isActive = activeBarName===entry.name;
+                            return (
+                              <Cell
+                                key={i}
+                                fill={colorMap[entry.name]||'#999'}
+                                opacity={activeBarName===null || isActive ? 1 : 0.55}
+                                style={{
+                                  transition: "transform 0.3s ease, opacity 0.3s ease",
+                                  transformOrigin: "center bottom",
+                                  transformBox: "fill-box",
+                                  transform: isActive ? "translateY(-4px) scale(1.04)" : "translateY(0) scale(1)",
+                                  cursor: "pointer",
+                                }}
+                              />
+                            );
+                          })}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -884,9 +895,9 @@ function MonthCalendar({ value, onChange, expenses }){
       <div className="flex items-center justify-between mb-2">
         <div className="text-sm text-gray-500">{y} 年 {m+1} 月</div>
         <div className="flex gap-2">
-          <button className="px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm" onClick={()=> onChange(new Date(y, m-1, Math.min(value.getDate(), 28)))}>上月</button>
-          <button className="px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm" onClick={()=> onChange(new Date(y, m+1, Math.min(value.getDate(), 28)))}>下月</button>
-          <button className="px-2 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-sm" onClick={()=> onChange(new Date())}>今天</button>
+          <button className="px-3 py-1 min-w-[72px] rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium whitespace-nowrap" onClick={()=> onChange(new Date(y, m-1, Math.min(value.getDate(), 28)))}>上月</button>
+          <button className="px-3 py-1 min-w-[72px] rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium whitespace-nowrap" onClick={()=> onChange(new Date(y, m+1, Math.min(value.getDate(), 28)))}>下月</button>
+          <button className="px-3 py-1 min-w-[72px] rounded-lg border border-gray-200 hover:bg-gray-50 text-sm font-medium whitespace-nowrap" onClick={()=> onChange(new Date())}>今天</button>
         </div>
       </div>
       <div className="grid grid-cols-7 text-center text-xs text-gray-400 mb-1">{['一','二','三','四','五','六','日'].map(w=> <div key={w}>周{w}</div>)}</div>
