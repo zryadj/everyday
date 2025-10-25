@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Wallet,
@@ -66,6 +66,22 @@ function startOfMonth(d=new Date()) { const t=new Date(d.getFullYear(), d.getMon
 function endOfMonth(d=new Date()) { const t=new Date(d.getFullYear(), d.getMonth()+1, 0); t.setHours(23,59,59,999); return t; }
 function formatCurrency(n) { return `¥${(Number(n)||0).toFixed(2)}`; }
 function parseAmount(v) { if (typeof v==="number") return v; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+function parseDateInput(v){ if(!v) return null; const parts=String(v).split('-').map(Number); if(parts.length!==3) return null; const [y,m,d]=parts; const dt=new Date(y, (m||1)-1, d||1); if(!Number.isFinite(dt.getTime())) return null; return dt; }
+function generateId(){ try{ if(typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID(); }catch{} return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
+function escapeXml(v){ return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
+function buildExcelXml(rows){
+  const xmlRows = rows.map(cells=>{
+    if(!cells || cells.length===0) return "<Row/>";
+    const cellsXml = cells.map(cell=>{
+      const type = cell?.type||'String';
+      const value = escapeXml(cell?.value??'');
+      return `<Cell><Data ss:Type="${type}">${value}</Data></Cell>`;
+    }).join("");
+    return `<Row>${cellsXml}</Row>`;
+  }).join("");
+  return `<?xml version="1.0"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="消费明细"><Table>${xmlRows}</Table></Worksheet></Workbook>`;
+}
+function downloadExcelXml(rows, filename){ const content=buildExcelXml(rows); const blob=new Blob([content],{type:"application/vnd.ms-excel"}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); }
 
 /** @typedef {{ id:string, title:string, amount:number, ts:number, category:string }} Expense */
 /** @typedef {{ dailyBudget:number, monthlyBudget?:number }} Settings */
@@ -155,6 +171,9 @@ export default function BudgetApp(){
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [trendDays, setTrendDays] = useState(7);
+  const [exportStart, setExportStart] = useState(()=> toISODate(startOfMonth(new Date())));
+  const [exportEnd, setExportEnd] = useState(()=> toISODate(new Date()));
+  const fileInputRef = useRef(null);
 
   // 今日/所选日 列表：是否展开全部
   const [showAllDay, setShowAllDay] = useState(false);
@@ -202,13 +221,155 @@ export default function BudgetApp(){
   const leftWeek = weeklyBudget - spentWeek;
   const leftMonth = monthlyBudget - spentMonth;
 
+  const exportStartDate = parseDateInput(exportStart);
+  const exportEndDate = parseDateInput(exportEnd);
+  const exportDisabled = !exportStartDate || !exportEndDate || startOfDay(exportStartDate) > endOfDay(exportEndDate);
+
+  function handleExport(){
+    if (exportDisabled){ alert("请选择正确的导出日期区间"); return; }
+    const startTs = startOfDay(exportStartDate).getTime();
+    const endTs = endOfDay(exportEndDate).getTime();
+    const list = expenses.filter(e=> e.ts>=startTs && e.ts<=endTs).sort((a,b)=> a.ts-b.ts);
+    if (list.length===0){ alert("所选区间没有消费记录"); return; }
+    const rows = [];
+    rows.push([
+      { type:'String', value:'日期' },
+      { type:'String', value:'标题' },
+      { type:'String', value:'分类' },
+      { type:'String', value:'金额' },
+      { type:'String', value:'记录时间' },
+    ]);
+    const dailyTotals = new Map();
+    for (const item of list){
+      const iso = toISODate(item.ts);
+      const timeStr = new Date(item.ts).toLocaleString();
+      rows.push([
+        { type:'String', value: iso },
+        { type:'String', value: item.title },
+        { type:'String', value: item.category },
+        { type:'Number', value: Number(item.amount||0) },
+        { type:'String', value: timeStr },
+      ]);
+      const prev = dailyTotals.get(iso) || { total: 0, count: 0 };
+      prev.total += item.amount || 0;
+      prev.count += 1;
+      dailyTotals.set(iso, prev);
+    }
+    rows.push([]);
+    rows.push([
+      { type:'String', value:'汇总' },
+      { type:'String', value:'日期' },
+      { type:'String', value:'条目' },
+      { type:'String', value:'金额' },
+      { type:'String', value:'' },
+    ]);
+    const sortedTotals = Array.from(dailyTotals.entries()).sort((a,b)=> a[0].localeCompare(b[0]));
+    let grandTotal = 0;
+    for (const [dateKey, info] of sortedTotals){
+      grandTotal += info.total;
+      rows.push([
+        { type:'String', value:'汇总' },
+        { type:'String', value: dateKey },
+        { type:'String', value: `${info.count} 条` },
+        { type:'Number', value: Number(info.total.toFixed(2)) },
+        { type:'String', value:'' },
+      ]);
+    }
+    rows.push([
+      { type:'String', value:'汇总' },
+      { type:'String', value:'总计' },
+      { type:'String', value: `${list.length} 条` },
+      { type:'Number', value: Number(grandTotal.toFixed(2)) },
+      { type:'String', value:'' },
+    ]);
+    const filename = `消费明细_${exportStart}_${exportEnd}.xls`;
+    downloadExcelXml(rows, filename);
+  }
+
+  async function handleImport(ev){
+    const file = ev.target.files?.[0];
+    if(!file) return;
+    try {
+      const text = await file.text();
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(text, "application/xml");
+      if (doc.getElementsByTagName("parsererror").length>0) throw new Error("无法解析文件，请使用导出的模板");
+      const rows = Array.from(doc.getElementsByTagName("Row"));
+      if (rows.length<=1) throw new Error("文件中没有可导入的数据");
+      const headerCells = Array.from(rows[0].getElementsByTagName("Cell")).map(cell=>{
+        const dataNode = cell.getElementsByTagName("Data")[0];
+        return dataNode? dataNode.textContent?.trim() || "" : "";
+      });
+      const columnIndex = {};
+      headerCells.forEach((name, idx)=>{ if(name) columnIndex[name]=idx; });
+      if (columnIndex['日期']===undefined || columnIndex['金额']===undefined) throw new Error("模板缺少必要的列：日期或金额");
+      const imported = [];
+      for (let i=1;i<rows.length;i++){
+        const cells = Array.from(rows[i].getElementsByTagName("Cell"));
+        const getValue = (header)=>{
+          const idx = columnIndex[header];
+          if (idx===undefined) return "";
+          const cell = cells[idx];
+          if (!cell) return "";
+          const dataNode = cell.getElementsByTagName("Data")[0];
+          return dataNode? dataNode.textContent || "" : "";
+        };
+        const dateValue = getValue('日期').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) continue;
+        const amountValue = parseAmount(getValue('金额'));
+        if (!(amountValue>0)) continue;
+        const titleValue = getValue('标题').trim() || '默认';
+        const categoryValue = getValue('分类').trim();
+        imported.push({
+          date: dateValue,
+          title: titleValue,
+          category: categoryValue,
+          amount: amountValue,
+        });
+      }
+      if (imported.length===0) throw new Error("未读取到有效的消费记录");
+      const grouped = new Map();
+      for (const item of imported){
+        if (!grouped.has(item.date)) grouped.set(item.date, []);
+        grouped.get(item.date).push(item);
+      }
+      const affectedDates = Array.from(grouped.keys()).sort();
+      setExpenses(prev=>{
+        const preserved = prev.filter(e=> !grouped.has(toISODate(e.ts)));
+        const additions = [];
+        for (const dateKey of affectedDates){
+          const entries = grouped.get(dateKey) || [];
+          entries.forEach((entry, idx)=>{
+            const baseDate = parseDateInput(dateKey) || new Date();
+            const tsDate = new Date(baseDate.getTime());
+            tsDate.setHours(12, idx, 0, idx);
+            const categoryName = FIXED_CATEGORIES.some(c=>c.name===entry.category) ? entry.category : FIXED_CATEGORIES[0].name;
+            additions.push({ id: generateId(), title: entry.title, amount: entry.amount, category: categoryName, ts: tsDate.getTime() });
+          });
+        }
+        const merged = [...preserved, ...additions].sort((a,b)=> a.ts-b.ts);
+        return merged;
+      });
+      if (affectedDates.length>0){
+        const latest = parseDateInput(affectedDates[affectedDates.length-1]);
+        if (latest) setSelectedDate(latest);
+      }
+      alert(`成功导入 ${imported.length} 条消费记录，覆盖 ${grouped.size} 天。`);
+    } catch (err) {
+      console.error(err);
+      alert(err instanceof Error ? err.message : '导入失败，请检查文件格式');
+    } finally {
+      ev.target.value = "";
+    }
+  }
+
   function addExpense(e){
     e.preventDefault();
     const amt = parseAmount(amount);
     const finalTitle = title.trim() || '默认';
     if (!(amt>=1)) return; // 金额从 1 起步
     const ts = new Date(dateStr+"T"+ new Date().toTimeString().slice(0,8)).getTime();
-    const item = { id: crypto.randomUUID(), title: finalTitle, amount: amt, ts, category };
+    const item = { id: generateId(), title: finalTitle, amount: amt, ts, category };
     setExpenses(prev=> [item, ...prev]);
     setTitle(""); setAmount(""); setCategory(FIXED_CATEGORIES[0].name);
   }
@@ -378,48 +539,74 @@ export default function BudgetApp(){
 
         {tab === 'history' && (
           <>
-            {/* 历史浏览（日历 + 当日明细，可编辑/删除） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid gap-6">
               <Card>
-                <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5" /><h2 className="font-semibold">历史浏览</h2></div>
-                <MonthCalendar value={selectedDate} onChange={(d)=>{ setSelectedDate(d); setEditingId(null); }} expenses={expenses} />
+                <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2"><CalendarRange className="w-5 h-5" /><h2 className="font-semibold">数据导入导出</h2></div>
+                    <p className="text-xs text-gray-500">选择日期区间导出 Excel；导入同模板将按天覆盖原有数据。</p>
+                  </div>
+                  <div className="flex flex-col gap-3 md:flex-row md:items-end md:gap-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">开始</span>
+                      <input type="date" className="rounded-xl border border-gray-200 px-3 py-1" value={exportStart} max={exportEnd || undefined} onChange={ev=>setExportStart(ev.target.value)} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">结束</span>
+                      <input type="date" className="rounded-xl border border-gray-200 px-3 py-1" value={exportEnd} min={exportStart || undefined} onChange={ev=>setExportEnd(ev.target.value)} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button className={cn("px-3 py-1.5 rounded-xl text-sm", exportDisabled?"bg-gray-200 text-gray-500 cursor-not-allowed":"bg-black text-white")} onClick={handleExport} disabled={exportDisabled}>导出 Excel</button>
+                      <button className="px-3 py-1.5 rounded-xl border text-sm" onClick={()=>fileInputRef.current?.click()}>导入 Excel</button>
+                    </div>
+                  </div>
+                  <input ref={fileInputRef} type="file" accept=".xls" className="hidden" onChange={handleImport} />
+                </div>
               </Card>
-              <Card>
-                <div className="flex items-center justify-between mb-4"><h3 className="font-semibold">{toISODate(selectedDate)} 明细</h3><div className="text-sm text-gray-500">合计 {formatCurrency(spentSelected)}</div></div>
-                {expensesSelected.length===0? <div className="text-sm text-gray-500">这一天没有记录</div> : (
-                  <ul className="divide-y divide-gray-100">
-                    {expensesSelected.map(e=> (
-                      <li key={e.id} className="py-3">
-                        {editingId===e.id ? (
-                          <div className="flex flex-col md:flex-row md:items-center gap-2">
-                            <input className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.title} onChange={ev=>setEditDraft(d=>({...d, title: ev.target.value}))} />
-                            <input type="number" min={1} step="1" className="rounded-xl border border-gray-200 px-3 py-1 w-28" value={editDraft.amount} onChange={ev=>setEditDraft(d=>({...d, amount: ev.target.value}))} />
-                            <select className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.category} onChange={ev=>setEditDraft(d=>({...d, category: ev.target.value}))}>
-                              {FIXED_CATEGORIES.map(c=> <option key={c.name} value={c.name}>{c.name}</option>)}
-                            </select>
-                            <div className="ml-auto flex gap-2">
-                              <button className="px-3 py-1 rounded-xl bg黑 text白 text-sm" onClick={()=>saveEdit(e.id)}>保存</button>
-                              <button className="px-3 py-1 rounded-xl border text-sm" onClick={cancelEdit}>取消</button>
+
+              {/* 历史浏览（日历 + 当日明细，可编辑/删除） */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card>
+                  <div className="flex items-center gap-2 mb-4"><History className="w-5 h-5" /><h2 className="font-semibold">历史浏览</h2></div>
+                  <MonthCalendar value={selectedDate} onChange={(d)=>{ setSelectedDate(d); setEditingId(null); }} expenses={expenses} />
+                </Card>
+                <Card>
+                  <div className="flex items-center justify-between mb-4"><h3 className="font-semibold">{toISODate(selectedDate)} 明细</h3><div className="text-sm text-gray-500">合计 {formatCurrency(spentSelected)}</div></div>
+                  {expensesSelected.length===0? <div className="text-sm text-gray-500">这一天没有记录</div> : (
+                    <ul className="divide-y divide-gray-100">
+                      {expensesSelected.map(e=> (
+                        <li key={e.id} className="py-3">
+                          {editingId===e.id ? (
+                            <div className="flex flex-col md:flex-row md:items-center gap-2">
+                              <input className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.title} onChange={ev=>setEditDraft(d=>({...d, title: ev.target.value}))} />
+                              <input type="number" min={1} step="1" className="rounded-xl border border-gray-200 px-3 py-1 w-28" value={editDraft.amount} onChange={ev=>setEditDraft(d=>({...d, amount: ev.target.value}))} />
+                              <select className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.category} onChange={ev=>setEditDraft(d=>({...d, category: ev.target.value}))}>
+                                {FIXED_CATEGORIES.map(c=> <option key={c.name} value={c.name}>{c.name}</option>)}
+                              </select>
+                              <div className="ml-auto flex gap-2">
+                                <button className="px-3 py-1 rounded-xl bg黑 text白 text-sm" onClick={()=>saveEdit(e.id)}>保存</button>
+                                <button className="px-3 py-1 rounded-xl border text-sm" onClick={cancelEdit}>取消</button>
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="font-medium flex items-center gap-2">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
-                              <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          ) : (
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <div className="font-medium flex items-center gap-2">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
+                                <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
+                                <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="编辑" onClick={()=>startEdit(e)}><Pencil className="w-4 h-4" /></button>
+                                <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-3">
-                              <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
-                              <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="编辑" onClick={()=>startEdit(e)}><Pencil className="w-4 h-4" /></button>
-                              <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </Card>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </Card>
+              </div>
             </div>
           </>
         )}
