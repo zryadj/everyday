@@ -746,80 +746,94 @@ export default function BudgetApp(){
                 <div className="flex items-center gap-2 mb-4"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">消费统计</h2></div>
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="space-y-4">
-                    <div>
+                    <div className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
                       <div className="text-xs uppercase tracking-wide text-gray-400">近30天合计</div>
-                      <div className="text-lg font-semibold mt-1">{formatCurrency(thirtyDayStats.total)}</div>
+                      <div className="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{formatCurrency(thirtyDayStats.total)}</div>
                     </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-gray-400">单日最低</div>
-                      {thirtyDayStats.minDay ? (
-                        <div className="mt-1 space-y-2">
-                          <div className="text-sm font-medium">{thirtyDayStats.minDay.date} · {formatCurrency(thirtyDayStats.minDay.total)}</div>
-                          <ul className="space-y-1 text-xs text-gray-600">
-                            {thirtyDayStats.minDay.entries.map(item=>(
-                              <li key={item.id} className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="truncate">{item.title}</span>
-                                  {item.category && (<Badge color={colorMap[item.category] || '#e5e7eb'}>{item.category}</Badge>)}
-                                </div>
-                                <span className="tabular-nums font-medium">{formatCurrency(item.amount)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <div className="mt-1 text-xs text-gray-400">近30天无消费记录</div>
-                      )}
-                    </div>
-                    <div>
-                      <div className="text-xs uppercase tracking-wide text-gray-400">单日最高</div>
-                      {thirtyDayStats.maxDay ? (
-                        <div className="mt-1 space-y-2">
-                          <div className="text-sm font-medium">{thirtyDayStats.maxDay.date} · {formatCurrency(thirtyDayStats.maxDay.total)}</div>
-                          <ul className="space-y-1 text-xs text-gray-600">
-                            {thirtyDayStats.maxDay.entries.map(item=>(
-                              <li key={item.id} className="flex items-center justify-between gap-2">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span className="truncate">{item.title}</span>
-                                  {item.category && (<Badge color={colorMap[item.category] || '#e5e7eb'}>{item.category}</Badge>)}
-                                </div>
-                                <span className="tabular-nums font-medium">{formatCurrency(item.amount)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : (
-                        <div className="mt-1 text-xs text-gray-400">近30天无消费记录</div>
-                      )}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
+                        <div className="text-xs uppercase tracking-wide text-gray-400">单日最低</div>
+                        {thirtyDayStats.minDay ? (
+                          <div className="mt-3 space-y-3">
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-sm font-medium text-gray-900">{thirtyDayStats.minDay.date}</span>
+                              <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(thirtyDayStats.minDay.total)}</span>
+                            </div>
+                            <ul className="space-y-2 text-xs text-gray-600">
+                              {thirtyDayStats.minDay.entries.map(item=>(
+                                <li key={item.id} className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="truncate">{item.title}</span>
+                                    {item.category && (<Badge color={colorMap[item.category] || '#e5e7eb'}>{item.category}</Badge>)}
+                                  </div>
+                                  <span className="tabular-nums font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="mt-3 text-xs text-gray-400">近30天无消费记录</div>
+                        )}
+                      </div>
+                      <div className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
+                        <div className="text-xs uppercase tracking-wide text-gray-400">单日最高</div>
+                        {thirtyDayStats.maxDay ? (
+                          <div className="mt-3 space-y-3">
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="text-sm font-medium text-gray-900">{thirtyDayStats.maxDay.date}</span>
+                              <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(thirtyDayStats.maxDay.total)}</span>
+                            </div>
+                            <ul className="space-y-2 text-xs text-gray-600">
+                              {thirtyDayStats.maxDay.entries.map(item=>(
+                                <li key={item.id} className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="truncate">{item.title}</span>
+                                    {item.category && (<Badge color={colorMap[item.category] || '#e5e7eb'}>{item.category}</Badge>)}
+                                  </div>
+                                  <span className="tabular-nums font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ) : (
+                          <div className="mt-3 text-xs text-gray-400">近30天无消费记录</div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                  <div className="space-y-4">
-                    <div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
                       <div className="text-xs uppercase tracking-wide text-gray-400">近一年单笔最低</div>
                       {yearlyStats.minExpense ? (
-                        <div className="mt-1 space-y-1 text-sm text-gray-600">
-                          <div className="font-medium text-gray-900">{formatCurrency(yearlyStats.minExpense.amount)} · {yearlyStats.minExpense.title}</div>
+                        <div className="mt-3 space-y-2 text-sm text-gray-600">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="font-medium text-gray-900 truncate">{yearlyStats.minExpense.title}</span>
+                            <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(yearlyStats.minExpense.amount)}</span>
+                          </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                             <span>日期 {toISODate(yearlyStats.minExpense.ts)}</span>
                             {yearlyStats.minExpense.category && (<Badge color={colorMap[yearlyStats.minExpense.category] || '#e5e7eb'}>{yearlyStats.minExpense.category}</Badge>)}
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-1 text-xs text-gray-400">近一年无消费记录</div>
+                        <div className="mt-3 text-xs text-gray-400">近一年无消费记录</div>
                       )}
                     </div>
-                    <div>
+                    <div className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
                       <div className="text-xs uppercase tracking-wide text-gray-400">近一年单笔最高</div>
                       {yearlyStats.maxExpense ? (
-                        <div className="mt-1 space-y-1 text-sm text-gray-600">
-                          <div className="font-medium text-gray-900">{formatCurrency(yearlyStats.maxExpense.amount)} · {yearlyStats.maxExpense.title}</div>
+                        <div className="mt-3 space-y-2 text-sm text-gray-600">
+                          <div className="flex items-baseline justify-between gap-3">
+                            <span className="font-medium text-gray-900 truncate">{yearlyStats.maxExpense.title}</span>
+                            <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(yearlyStats.maxExpense.amount)}</span>
+                          </div>
                           <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
                             <span>日期 {toISODate(yearlyStats.maxExpense.ts)}</span>
                             {yearlyStats.maxExpense.category && (<Badge color={colorMap[yearlyStats.maxExpense.category] || '#e5e7eb'}>{yearlyStats.maxExpense.category}</Badge>)}
                           </div>
                         </div>
                       ) : (
-                        <div className="mt-1 text-xs text-gray-400">近一年无消费记录</div>
+                        <div className="mt-3 text-xs text-gray-400">近一年无消费记录</div>
                       )}
                     </div>
                   </div>
