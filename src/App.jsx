@@ -614,7 +614,10 @@ export default function BudgetApp(){
                   <form onSubmit={handleHistoryJump} className="mt-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                       <input type="date" className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 sm:w-48 sm:flex-none" value={historyJumpValue} onChange={(ev)=>setHistoryJumpValue(ev.target.value)} />
-                      <button type="submit" className="h-10 rounded-xl bg-black px-4 text-sm text-white sm:px-6 sm:min-w-[108px]">跳转</button>
+                      <button
+                        type="submit"
+                        className="h-10 rounded-xl bg-black px-4 text-sm text-white sm:px-6 sm:min-w-[108px] self-end sm:self-auto sm:ml-auto"
+                      >跳转</button>
                     </div>
                   </form>
                 </Card>
