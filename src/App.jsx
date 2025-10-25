@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Wallet,
@@ -43,6 +43,10 @@ const LS_KEY_EXPENSES = "budget.expenses.v2"; // 正常条目
 const LS_KEY_SETTINGS = "budget.settings.v2"; // 设置
 const LS_KEY_TRASH = "budget.trash.v1";        // 回收站
 
+const DEFAULT_SETTINGS = { dailyBudget: 30, monthlyBudget: 0 };
+const EXPORT_VERSION = 1;
+const EXPORT_FILE_PREFIX = "budget-backup";
+
 const FIXED_CATEGORIES = [
   { name: "日常", color: "#0ea5e9" },
   { name: "吃饭", color: "#22c55e" },
@@ -76,12 +80,62 @@ function loadSettings() {
   try {
     const raw=localStorage.getItem(LS_KEY_SETTINGS);
     if (raw) return JSON.parse(raw);
-    return { dailyBudget: 30, monthlyBudget: 0 };
-  } catch { return { dailyBudget: 30, monthlyBudget: 0 }; }
+    return { ...DEFAULT_SETTINGS };
+  } catch { return { ...DEFAULT_SETTINGS }; }
 }
 function saveSettings(s) { localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(s)); }
 function loadTrash(){ try{ const raw=localStorage.getItem(LS_KEY_TRASH); return raw? JSON.parse(raw): []; }catch{ return []; } }
 function saveTrash(t){ localStorage.setItem(LS_KEY_TRASH, JSON.stringify(t)); }
+
+function normalizeExpense(raw) {
+  if (!raw || typeof raw !== "object") throw new Error("invalid expense");
+  const amountValue = parseAmount(raw.amount);
+  const amount = Number.isFinite(amountValue) ? Math.max(0, amountValue) : 0;
+  const ts = Number(raw.ts);
+  return {
+    id: typeof raw.id === "string" && raw.id ? raw.id : crypto.randomUUID(),
+    title: typeof raw.title === "string" && raw.title.trim() ? raw.title.trim() : "未命名",
+    amount,
+    ts: Number.isFinite(ts) ? ts : Date.now(),
+    category: typeof raw.category === "string" && raw.category ? raw.category : FIXED_CATEGORIES[0].name,
+  };
+}
+
+function normalizeTrashEntry(raw) {
+  const base = normalizeExpense(raw);
+  const deletedAt = Number(raw.deletedAt);
+  return { ...base, deletedAt: Number.isFinite(deletedAt) ? deletedAt : Date.now() };
+}
+
+function normalizeSettings(raw) {
+  if (!raw || typeof raw !== "object") return { ...DEFAULT_SETTINGS };
+  const daily = parseAmount(raw.dailyBudget);
+  const monthly = parseAmount(raw.monthlyBudget);
+  return {
+    dailyBudget: daily > 0 ? daily : DEFAULT_SETTINGS.dailyBudget,
+    monthlyBudget: monthly > 0 ? monthly : 0,
+  };
+}
+
+function normalizeSnapshot(raw) {
+  if (!raw || typeof raw !== "object") throw new Error("invalid snapshot");
+  const expenses = Array.isArray(raw.expenses) ? raw.expenses.map(normalizeExpense) : [];
+  const trash = Array.isArray(raw.trash) ? raw.trash.map(normalizeTrashEntry) : [];
+  const settings = normalizeSettings(raw.settings);
+  expenses.sort((a, b) => b.ts - a.ts);
+  trash.sort((a, b) => b.deletedAt - a.deletedAt);
+  return { expenses, trash, settings };
+}
+
+function buildExportPayload(expenses, settings, trash) {
+  return {
+    version: EXPORT_VERSION,
+    generatedAt: new Date().toISOString(),
+    expenses,
+    settings,
+    trash,
+  };
+}
 
 function groupByCategory(list) { const m=new Map(); for (const e of list){ const k=e.category||'日常'; m.set(k,(m.get(k)||0)+(e.amount||0)); } return Array.from(m, ([name,value])=>({name,value})); }
 const sum = (list)=> list.reduce((acc,e)=> acc+(e.amount||0), 0);
@@ -169,9 +223,18 @@ export default function BudgetApp(){
   const [activePieIndex, setActivePieIndex] = useState(-1);
   const [activeBarName, setActiveBarName] = useState(null);
 
+  const fileInputRef = useRef(null);
+  const [importFeedback, setImportFeedback] = useState(null);
+
   useEffect(()=> saveSettings(settings), [settings]);
   useEffect(()=> saveExpenses(expenses), [expenses]);
   useEffect(()=> saveTrash(trash), [trash]);
+
+  useEffect(()=>{
+    if (!importFeedback) return;
+    const timer = setTimeout(()=> setImportFeedback(null), 5000);
+    return ()=> clearTimeout(timer);
+  }, [importFeedback]);
 
   // 时间范围（周/月统计仍基于今天所在周/月）
   const now=new Date();
@@ -251,6 +314,57 @@ export default function BudgetApp(){
     setEditingId(null);
   }
 
+  function handleExport(){
+    try {
+      const payload = buildExportPayload(expenses, settings, trash);
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${EXPORT_FILE_PREFIX}-${stamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setImportFeedback({ type: "success", message: "导出成功，备份文件已生成。" });
+    } catch (err) {
+      console.error(err);
+      setImportFeedback({ type: "error", message: "导出失败，请稍后再试。" });
+    }
+  }
+
+  function triggerImport(){
+    fileInputRef.current?.click();
+  }
+
+  function handleImportFile(ev){
+    const file = ev.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try {
+        const text = typeof reader.result === "string" ? reader.result : "";
+        const parsed = JSON.parse(text);
+        const snapshot = normalizeSnapshot(parsed);
+        setExpenses(snapshot.expenses);
+        setSettings(snapshot.settings);
+        setTrash(snapshot.trash);
+        setImportFeedback({ type: "success", message: `导入成功，已同步 ${snapshot.expenses.length} 条消费、${snapshot.trash.length} 条回收。` });
+      } catch (error) {
+        console.error(error);
+        setImportFeedback({ type: "error", message: "导入失败：文件不是有效的备份。" });
+      } finally {
+        ev.target.value = "";
+      }
+    };
+    reader.onerror = ()=>{
+      setImportFeedback({ type: "error", message: "导入失败：无法读取文件。" });
+      ev.target.value = "";
+    };
+    reader.readAsText(file);
+  }
+
   // 图表数据与颜色映射
   const colorMap = Object.fromEntries(FIXED_CATEGORIES.map(c=>[c.name, c.color]));
   const weekByCat = groupByCategory(expensesWeek);
@@ -304,7 +418,7 @@ export default function BudgetApp(){
               {/* 设置 */}
               <Card>
                 <div className="flex items-center gap-2 mb-4"><SettingsIcon className="w-5 h-5" /><h2 className="font-semibold">设置</h2></div>
-                <div className="space-y-3">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm text-gray-600">每日预算 (元)</label>
                     <input type="number" step="1" min={1} className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={settings.dailyBudget} onChange={(e)=> setSettings({ ...settings, dailyBudget: Math.max(1, parseAmount(e.target.value)) })} />
@@ -313,6 +427,22 @@ export default function BudgetApp(){
                     <label className="block text-sm text-gray-600">月度预算 (元，可选)</label>
                     <input type="number" step="1" min={1} className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={settings.monthlyBudget || 0} onChange={(e)=> setSettings({ ...settings, monthlyBudget: Math.max(0, parseAmount(e.target.value)) })} />
                     <p className="text-xs text-gray-500 mt-1">为空或 0 时，按每日预算 × 当月天数计算。</p>
+                  </div>
+                  <div className="pt-4 border-t border-gray-100">
+                    <div className="text-sm font-semibold text-gray-700 mb-2">数据导出 / 导入</div>
+                    <p className="text-xs text-gray-500 mb-3">导出后可在其它设备导入，实现本地数据同步。</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={handleExport} className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-50">
+                        导出数据
+                      </button>
+                      <button type="button" onClick={triggerImport} className="inline-flex items-center gap-2 rounded-xl bg-black text-white px-3 py-2 text-sm hover:opacity-90">
+                        导入数据
+                      </button>
+                    </div>
+                    {importFeedback && (
+                      <p className={cn("mt-2 text-xs", importFeedback.type === "success" ? "text-green-600" : "text-red-600")}>{importFeedback.message}</p>
+                    )}
+                    <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} className="hidden" />
                   </div>
                 </div>
               </Card>
