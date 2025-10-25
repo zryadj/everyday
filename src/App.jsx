@@ -67,15 +67,11 @@ function endOfMonth(d=new Date()) { const t=new Date(d.getFullYear(), d.getMonth
 function formatCurrency(n) { return `¥${(Number(n)||0).toFixed(2)}`; }
 function parseAmount(v) { if (typeof v==="number") return v; const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
 function parseDateInput(v){ if(!v) return null; const parts=String(v).split('-').map(Number); if(parts.length!==3) return null; const [y,m,d]=parts; const dt=new Date(y, (m||1)-1, d||1); if(!Number.isFinite(dt.getTime())) return null; return dt; }
-function parseDateTimeInput(v){ if(!v) return null; const dt=new Date(v); if(!Number.isFinite(dt.getTime())) return null; return dt; }
-function toDateTimeLocalValue(date){
+function toDateInputValue(date){
   if(!date) return "";
   const dt=new Date(date);
   if(!Number.isFinite(dt.getTime())) return "";
-  const iso=toISODate(dt);
-  const h=String(dt.getHours()).padStart(2,'0');
-  const m=String(dt.getMinutes()).padStart(2,'0');
-  return `${iso}T${h}:${m}`;
+  return toISODate(dt);
 }
 function generateId(){ try{ if(typeof crypto!=='undefined' && crypto.randomUUID) return crypto.randomUUID(); }catch{} return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`; }
 function escapeXml(v){ return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;'); }
@@ -187,7 +183,7 @@ export default function BudgetApp(){
   const [category, setCategory] = useState(FIXED_CATEGORIES[0].name);
 
   const [selectedDate, setSelectedDate] = useState(new Date());
-  const [historyJumpValue, setHistoryJumpValue] = useState(()=> toDateTimeLocalValue(new Date()));
+  const [historyJumpValue, setHistoryJumpValue] = useState(()=> toDateInputValue(new Date()));
   const [trendDays, setTrendDays] = useState(7);
   const [exportStart, setExportStart] = useState(()=> toISODate(startOfMonth(new Date())));
   const [exportEnd, setExportEnd] = useState(()=> toISODate(new Date()));
@@ -209,7 +205,7 @@ export default function BudgetApp(){
   useEffect(()=> saveSettings(settings), [settings]);
   useEffect(()=> saveExpenses(expenses), [expenses]);
   useEffect(()=> saveTrash(trash), [trash]);
-  useEffect(()=>{ setHistoryJumpValue(toDateTimeLocalValue(selectedDate)); }, [selectedDate]);
+  useEffect(()=>{ setHistoryJumpValue(toDateInputValue(selectedDate)); }, [selectedDate]);
 
   // 时间范围（周/月统计仍基于今天所在周/月）
   const now=new Date();
@@ -384,7 +380,7 @@ export default function BudgetApp(){
 
   function handleHistoryJump(ev){
     ev?.preventDefault?.();
-    const dt = parseDateTimeInput(historyJumpValue);
+    const dt = parseDateInput(historyJumpValue);
     if(!dt) return;
     setSelectedDate(dt);
     setEditingId(null);
@@ -617,8 +613,8 @@ export default function BudgetApp(){
                   <MonthCalendar value={selectedDate} onChange={(d)=>{ setSelectedDate(d); setEditingId(null); }} expenses={expenses} />
                   <form onSubmit={handleHistoryJump} className="mt-4">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                      <input type="datetime-local" className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" value={historyJumpValue} onChange={(ev)=>setHistoryJumpValue(ev.target.value)} />
-                      <button type="submit" className="h-10 rounded-xl bg-black px-4 text-sm text-white sm:w-auto">跳转</button>
+                      <input type="date" className="h-10 w-full rounded-xl border border-gray-200 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 sm:w-48 sm:flex-none" value={historyJumpValue} onChange={(ev)=>setHistoryJumpValue(ev.target.value)} />
+                      <button type="submit" className="h-10 rounded-xl bg-black px-4 text-sm text-white sm:px-6 sm:min-w-[108px]">跳转</button>
                     </div>
                   </form>
                 </Card>
