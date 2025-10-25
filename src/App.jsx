@@ -99,7 +99,14 @@ function saveSettings(s) { localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(
 function loadTrash(){ try{ const raw=localStorage.getItem(LS_KEY_TRASH); return raw? JSON.parse(raw): []; }catch{ return []; } }
 function saveTrash(t){ localStorage.setItem(LS_KEY_TRASH, JSON.stringify(t)); }
 
-function groupByCategory(list) { const m=new Map(); for (const e of list){ const k=e.category||'日常'; m.set(k,(m.get(k)||0)+(e.amount||0)); } return Array.from(m, ([name,value])=>({name,value})); }
+function groupByCategory(list) {
+  const m=new Map();
+  for (const e of list){
+    const k=e.category||'日常';
+    m.set(k,(m.get(k)||0)+(e.amount||0));
+  }
+  return Array.from(m, ([name,amount])=>({name,amount}));
+}
 const sum = (list)=> list.reduce((acc,e)=> acc+(e.amount||0), 0);
 function eachDayBetween(start, end){ const arr=[]; const d=new Date(startOfDay(start)); const e=new Date(startOfDay(end)); while (d<=e){ arr.push(new Date(d)); d.setDate(d.getDate()+1);} return arr; }
 function trendDaily(expenses, days){ const end=new Date(); const start=new Date(); start.setDate(end.getDate()-(days-1)); const daysArr=eachDayBetween(start,end); const byDate=new Map(); for (const e of expenses){ const iso=toISODate(e.ts); byDate.set(iso,(byDate.get(iso)||0)+(e.amount||0)); } return daysArr.map(d=>{ const iso=toISODate(d); return { date: iso.slice(5), value: byDate.get(iso)||0 }; }); }
@@ -626,12 +633,12 @@ export default function BudgetApp(){
                             <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.25" />
                           </filter>
                         </defs>
-                        <Pie dataKey="value" data={weekByCat} outerRadius={90} isAnimationActive activeIndex={activePieIndex}
+                        <Pie dataKey="amount" name="金额" data={weekByCat} outerRadius={90} isAnimationActive activeIndex={activePieIndex}
                           onMouseEnter={(_,i)=>setActivePieIndex(i)} onMouseLeave={()=>setActivePieIndex(-1)} onClick={(_,i)=>setActivePieIndex(i)}
                           activeShape={(p)=>{ const {cx,cy,innerRadius,outerRadius,startAngle,endAngle,fill}=p; return <g><Sector cx={cx} cy={cy} innerRadius={innerRadius} outerRadius={outerRadius+6} startAngle={startAngle} endAngle={endAngle} fill={fill} filter="url(#shadow)"/></g>; }} label>
                           {weekByCat.map((entry,i)=> (<Cell key={i} fill={colorMap[entry.name]||'#999'} opacity={activePieIndex===-1 || activePieIndex===i?1:0.45}/>))}
                         </Pie>
-                        <Tooltip formatter={(v)=>formatCurrency(v)} />
+                        <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
                         <Legend />
                       </PieChart>
                     </ResponsiveContainer>
@@ -648,13 +655,13 @@ export default function BudgetApp(){
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
                         <YAxis />
-                        <Tooltip formatter={(v)=>formatCurrency(v)} />
+                        <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
                         <Legend />
                         <defs>
-                          <filter id="shadowBar" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.25" /></filter>
+                          <filter id="shadowBar" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="0" floodColor="#0f172a" floodOpacity="0.18" /></filter>
                         </defs>
                         {/* 瘦一点的长方形 */}
-                        <Bar dataKey="value" isAnimationActive barSize={16} radius={[5,5,0,0]}>
+                        <Bar dataKey="amount" name="金额" isAnimationActive barSize={16} radius={[5,5,0,0]}>
                           {monthByCat.map((entry,i)=> (
                             <Cell key={i} fill={colorMap[entry.name]||'#999'} filter={activeBarName===entry.name? 'url(#shadowBar)': undefined} opacity={activeBarName===null || activeBarName===entry.name ? 1 : 0.55} />
                           ))}
