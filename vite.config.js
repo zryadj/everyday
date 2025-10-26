@@ -5,5 +5,5 @@ const repoName = process.env.GITHUB_REPOSITORY && process.env.GITHUB_REPOSITORY.
 
 export default defineConfig({
   plugins: [react()],
-  base: '/everyday/', 
+  base: repoName ? `/${repoName}/` : '/'
 })
