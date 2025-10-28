@@ -667,7 +667,7 @@ export default function BudgetApp(){
                   <h2 className="font-semibold">新增消费</h2>
                 </div>
                 <form onSubmit={addExpense} className="grid grid-cols-1 gap-3 md:grid-cols-[1.75fr_1fr_1.5fr]">
-                  <input type="text" placeholder="事项：吃饭/地铁/咖啡" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
+                  <input type="text" placeholder="事项:吃饭/地铁/咖啡" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
                   <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
                   <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
                   <div className="md:col-span-3"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
