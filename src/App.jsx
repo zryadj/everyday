@@ -153,19 +153,36 @@ function Stat({ icon, label, value, sub, danger }){ const Icon=icon; const isDan
 
 function CategorySelect({ value, onChange, categories }){
   const list = categories && categories.length>0 ? categories : DEFAULT_CATEGORIES;
+  const [expanded, setExpanded] = useState(false);
+  const listLength = list.length;
+  useEffect(()=>{ if (listLength<=4) setExpanded(false); }, [listLength]);
+  const visibleList = expanded ? list : list.slice(0,4);
+  const showToggle = listLength>4;
+  const gridCols = showToggle ? "grid-cols-2 sm:grid-cols-5" : "grid-cols-2 sm:grid-cols-4";
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-      {list.map(c=> (
-        <button
-          key={c.name}
-          type="button"
-          onClick={()=>onChange(c.name)}
-          className={cn("w-full rounded-xl border px-2 py-1 text-sm flex items-center justify-center gap-2", value===c.name?"border-transparent text-white":"border-gray-200")}
-          style={{ backgroundColor: value===c.name? c.color: '#fff', color: value===c.name? readableTextColor(c.color): undefined }}
-        >
-          <span className="inline-block w-2.5 h-2.5 rounded-full" style={{backgroundColor:c.color}} />{c.name}
-        </button>
-      ))}
+    <div className="flex flex-col gap-2">
+      <div className={cn("grid gap-2", gridCols)}>
+        {visibleList.map(c=> (
+          <button
+            key={c.name}
+            type="button"
+            onClick={()=>onChange(c.name)}
+            className={cn("w-full rounded-xl border px-2 py-1 text-sm flex items-center justify-center gap-2", value===c.name?"border-transparent text-white":"border-gray-200")}
+            style={{ backgroundColor: value===c.name? c.color: '#fff', color: value===c.name? readableTextColor(c.color): undefined }}
+          >
+            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{backgroundColor:c.color}} />{c.name}
+          </button>
+        ))}
+        {showToggle && (
+          <button
+            type="button"
+            onClick={()=>setExpanded(v=>!v)}
+            className="w-full rounded-xl border border-dashed border-gray-300 px-2 py-1 text-sm text-gray-500 transition hover:border-gray-400 hover:text-gray-700 col-span-2 sm:col-span-1"
+          >
+            {expanded? '收起': '更多'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -654,10 +671,23 @@ export default function BudgetApp(){
                   <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
                   <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
                   <div className="md:col-span-4"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
-                  <div className="md:col-span-4 flex flex-wrap gap-2">
-                    <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99]"><Plus className="w-4 h-4" /> 添加</button>
-                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50" onClick={()=>adjustFormDate(-1)}>前一天</button>
-                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50" onClick={()=>adjustFormDate(1)}>后一天</button>
+                  <div className="md:col-span-4 grid grid-cols-1 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                    <button
+                      type="submit"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99] md:col-span-2"
+                    >
+                      <Plus className="w-4 h-4" /> 添加
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
+                      onClick={()=>adjustFormDate(-1)}
+                    >前一天</button>
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
+                      onClick={()=>adjustFormDate(1)}
+                    >后一天</button>
                   </div>
                 </form>
               </Card>
@@ -674,13 +704,13 @@ export default function BudgetApp(){
                   <>
                     <ul className="divide-y divide-gray-100">
                       {(showAllDay ? expensesDay : expensesDay.slice(0,3)).map(e=> (
-                        <li key={e.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="w-full">
+                        <li key={e.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
+                          <div className="flex-1">
                             <div className="flex flex-wrap items-center gap-2 font-medium">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
-                            <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                            <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
                           </div>
-                          <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
-                            <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
+                          <div className="flex items-center gap-3 sm:ml-auto sm:min-w-[140px] sm:justify-end">
+                            <div className="tabular-nums text-right font-semibold sm:text-right">-{formatCurrency(e.amount)}</div>
                             <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
                           </div>
                         </li>
@@ -764,13 +794,13 @@ export default function BudgetApp(){
                               </div>
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                              <div>
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                              <div className="flex-1">
                                 <div className="flex flex-wrap items-center gap-2 font-medium">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
-                                <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                                <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
                               </div>
-                              <div className="flex items-center gap-3 sm:justify-end">
-                                <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
+                              <div className="flex items-center gap-3 sm:ml-auto sm:min-w-[160px] sm:justify-end">
+                                <div className="tabular-nums text-right font-semibold sm:text-right">-{formatCurrency(e.amount)}</div>
                                 <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="编辑" onClick={()=>startEdit(e)}><Pencil className="w-4 h-4" /></button>
                                 <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
                               </div>
