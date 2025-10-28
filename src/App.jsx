@@ -666,18 +666,12 @@ export default function BudgetApp(){
                   <Plus className="w-5 h-5" />
                   <h2 className="font-semibold">新增消费</h2>
                 </div>
-                <form onSubmit={addExpense} className="grid grid-cols-1 gap-3 md:grid-cols-4">
-                  <input type="text" placeholder="事项，如 吃饭/地铁/咖啡" className="md:col-span-2 w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
+                <form onSubmit={addExpense} className="grid grid-cols-1 gap-3 md:grid-cols-[1.75fr_1fr_1.5fr]">
+                  <input type="text" placeholder="事项，如 吃饭/地铁/咖啡" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
                   <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
                   <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
-                  <div className="md:col-span-4"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
-                  <div className="md:col-span-4 grid grid-cols-1 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                    <button
-                      type="submit"
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99] md:col-span-2"
-                    >
-                      <Plus className="w-4 h-4" /> 添加
-                    </button>
+                  <div className="md:col-span-3"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
+                  <div className="md:col-span-3 grid grid-cols-1 gap-2 sm:grid-cols-3 md:grid-cols-4">
                     <button
                       type="button"
                       className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
@@ -688,6 +682,12 @@ export default function BudgetApp(){
                       className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
                       onClick={()=>adjustFormDate(1)}
                     >后一天</button>
+                    <button
+                      type="submit"
+                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99] md:col-span-2"
+                    >
+                      <Plus className="w-4 h-4" /> 添加
+                    </button>
                   </div>
                 </form>
               </Card>
