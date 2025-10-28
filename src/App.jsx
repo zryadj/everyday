@@ -9,7 +9,8 @@ import {
   History,
   PieChart as PieIcon,
   LineChart as LineIcon,
-  Pencil
+  Pencil,
+  Tag
 } from "lucide-react";
 
 import {
@@ -42,8 +43,9 @@ import {
 const LS_KEY_EXPENSES = "budget.expenses.v2"; // 正常条目
 const LS_KEY_SETTINGS = "budget.settings.v2"; // 设置
 const LS_KEY_TRASH = "budget.trash.v1";        // 回收站
+const LS_KEY_CATEGORIES = "budget.categories.v1";
 
-const FIXED_CATEGORIES = [
+const DEFAULT_CATEGORIES = [
   { name: "日常", color: "#0ea5e9" },
   { name: "吃饭", color: "#22c55e" },
   { name: "数码", color: "#f97316" },
@@ -104,6 +106,19 @@ function loadSettings() {
 function saveSettings(s) { localStorage.setItem(LS_KEY_SETTINGS, JSON.stringify(s)); }
 function loadTrash(){ try{ const raw=localStorage.getItem(LS_KEY_TRASH); return raw? JSON.parse(raw): []; }catch{ return []; } }
 function saveTrash(t){ localStorage.setItem(LS_KEY_TRASH, JSON.stringify(t)); }
+function loadCategories(){
+  try {
+    const raw = localStorage.getItem(LS_KEY_CATEGORIES);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length>0) {
+        return parsed.filter(c=> c && typeof c.name==='string' && c.name.trim()).map(c=>({ name: c.name.trim(), color: c.color || '#0ea5e9' }));
+      }
+    }
+  } catch {}
+  return DEFAULT_CATEGORIES;
+}
+function saveCategories(list){ localStorage.setItem(LS_KEY_CATEGORIES, JSON.stringify(list)); }
 
 function groupByCategory(list) {
   const m=new Map();
@@ -130,13 +145,18 @@ function Stat({ icon, label, value, sub, danger }){ const Icon=icon; const isDan
   </div>
 ); }
 
-function CategorySelect({ value, onChange }){
+function CategorySelect({ value, onChange, categories }){
+  const list = categories && categories.length>0 ? categories : DEFAULT_CATEGORIES;
   return (
     <div className="grid grid-cols-4 gap-2">
-      {FIXED_CATEGORIES.map(c=> (
-        <button key={c.name} type="button" onClick={()=>onChange(c.name)}
+      {list.map(c=> (
+        <button
+          key={c.name}
+          type="button"
+          onClick={()=>onChange(c.name)}
           className={cn("w-full rounded-xl border px-2 py-1 text-sm flex items-center justify-center gap-2", value===c.name?"border-transparent text-white":"border-gray-200")}
-          style={{ backgroundColor: value===c.name? c.color: '#fff', color: value===c.name? readableTextColor(c.color): undefined }}>
+          style={{ backgroundColor: value===c.name? c.color: '#fff', color: value===c.name? readableTextColor(c.color): undefined }}
+        >
           <span className="inline-block w-2.5 h-2.5 rounded-full" style={{backgroundColor:c.color}} />{c.name}
         </button>
       ))}
@@ -151,6 +171,7 @@ function Navbar({ tab, setTab }){
     { key: 'trend', label: '趋势', icon: LineIcon },
     { key: 'history', label: '历史', icon: History },
     { key: 'board', label: '看板', icon: PieIcon },
+    { key: 'settings', label: '设置', icon: SettingsIcon },
     { key: 'trash', label: '回收', icon: Trash2 },
   ];
   return (
@@ -176,11 +197,12 @@ export default function BudgetApp(){
   const [settings, setSettings] = useState(loadSettings());
   const [expenses, setExpenses] = useState(loadExpenses());
   const [trash, setTrash] = useState(loadTrash());
+  const [categories, setCategories] = useState(()=>loadCategories());
 
   const [title, setTitle] = useState("");
   const [amount, setAmount] = useState("");
   const [dateStr, setDateStr] = useState(toISODate(new Date()));
-  const [category, setCategory] = useState(FIXED_CATEGORIES[0].name);
+  const [category, setCategory] = useState("");
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [historyJumpValue, setHistoryJumpValue] = useState(()=> toDateInputValue(new Date()));
@@ -192,11 +214,15 @@ export default function BudgetApp(){
   // 今日/所选日 列表：是否展开全部
   const [showAllDay, setShowAllDay] = useState(false);
 
-  const [tab, setTab] = useState('trend'); // trend | history | board | trash
+  const [tab, setTab] = useState('trend'); // trend | history | board | settings | trash
 
   // 历史编辑状态
   const [editingId, setEditingId] = useState(null);
-  const [editDraft, setEditDraft] = useState({ title: '', amount: '', category: FIXED_CATEGORIES[0].name });
+  const [editDraft, setEditDraft] = useState({ title: '', amount: '', category: '' });
+
+  // 分类管理
+  const [categoryForm, setCategoryForm] = useState({ name: '', color: DEFAULT_CATEGORIES[0].color });
+  const [categoryEditing, setCategoryEditing] = useState(null);
 
   // 图表交互
   const [activePieIndex, setActivePieIndex] = useState(-1);
@@ -205,7 +231,24 @@ export default function BudgetApp(){
   useEffect(()=> saveSettings(settings), [settings]);
   useEffect(()=> saveExpenses(expenses), [expenses]);
   useEffect(()=> saveTrash(trash), [trash]);
+  useEffect(()=> saveCategories(categories), [categories]);
   useEffect(()=>{ setHistoryJumpValue(toDateInputValue(selectedDate)); }, [selectedDate]);
+  useEffect(()=>{
+    if (categories.length===0){
+      setCategory('');
+      return;
+    }
+    setCategory(prev=>{
+      if (prev && categories.some(c=>c.name===prev)) return prev;
+      return categories[0].name;
+    });
+  }, [categories]);
+  useEffect(()=>{
+    setEditDraft(d=>{
+      if (!d.category || categories.some(c=>c.name===d.category)) return d;
+      return { ...d, category: categories[0]?.name || '' };
+    });
+  }, [categories]);
 
   // 时间范围（周/月统计仍基于今天所在周/月）
   const now=new Date();
@@ -227,6 +270,14 @@ export default function BudgetApp(){
 
   const spentWeek = sum(expensesWeek);
   const spentMonth = sum(expensesMonth);
+  const categoryUsage = useMemo(()=>{
+    const map = new Map();
+    for (const item of expenses){
+      const key = item.category || '';
+      map.set(key, (map.get(key)||0)+1);
+    }
+    return map;
+  }, [expenses]);
 
   // 预算
   const daysInMonth = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
@@ -358,7 +409,7 @@ export default function BudgetApp(){
             const baseDate = parseDateInput(dateKey) || new Date();
             const tsDate = new Date(baseDate.getTime());
             tsDate.setHours(12, idx, 0, idx);
-            const categoryName = FIXED_CATEGORIES.some(c=>c.name===entry.category) ? entry.category : FIXED_CATEGORIES[0].name;
+            const categoryName = categories.some(c=>c.name===entry.category) ? entry.category : (categories[0]?.name || DEFAULT_CATEGORIES[0].name);
             additions.push({ id: generateId(), title: entry.title, amount: entry.amount, category: categoryName, ts: tsDate.getTime() });
           });
         }
@@ -386,15 +437,85 @@ export default function BudgetApp(){
     setEditingId(null);
   }
 
+  function adjustFormDate(offset){
+    const base = parseDateInput(dateStr) || new Date();
+    const nextDate = new Date(base.getTime());
+    nextDate.setDate(nextDate.getDate()+offset);
+    setDateStr(toISODate(nextDate));
+    setShowAllDay(false);
+  }
+
+  function handleAddCategory(ev){
+    ev?.preventDefault?.();
+    const name = categoryForm.name.trim();
+    if (!name){ alert('分类名称不能为空'); return; }
+    if (categories.some(c=>c.name===name)){ alert('分类名称已存在'); return; }
+    const color = categoryForm.color || DEFAULT_CATEGORIES[0].color;
+    const next = [...categories, { name, color }];
+    setCategories(next);
+    setCategoryForm({ name: '', color: DEFAULT_CATEGORIES[0].color });
+    if (!category){ setCategory(name); }
+  }
+
+  function startCategoryEditForm(index){
+    const target = categories[index];
+    if (!target) return;
+    setCategoryEditing({ index, name: target.name, color: target.color });
+  }
+
+  function cancelCategoryEdit(){ setCategoryEditing(null); }
+
+  function submitCategoryEdit(){
+    if (!categoryEditing) return;
+    const idx = categoryEditing.index;
+    const target = categories[idx];
+    if (!target) { setCategoryEditing(null); return; }
+    const name = categoryEditing.name.trim();
+    if (!name){ alert('分类名称不能为空'); return; }
+    if (categories.some((c,i)=> i!==idx && c.name===name)){ alert('分类名称已存在'); return; }
+    const color = categoryEditing.color || DEFAULT_CATEGORIES[0].color;
+    if (target.name===name && target.color===color){ setCategoryEditing(null); return; }
+    setCategories(prev=>{
+      const next=[...prev];
+      next[idx]={ name, color };
+      return next;
+    });
+    if (target.name!==name){
+      setExpenses(prev=> prev.map(item=> item.category===target.name? { ...item, category: name }: item));
+      setTrash(prev=> prev.map(item=> item.category===target.name? { ...item, category: name }: item));
+      setCategory(cur=> cur===target.name? name: cur);
+      setEditDraft(d=> ({ ...d, category: d.category===target.name? name: d.category }));
+    }
+    setCategoryEditing(null);
+  }
+
+  function removeCategory(index){
+    const target = categories[index];
+    if (!target) return;
+    if (categories.length<=1){ alert('至少保留一个分类'); return; }
+    if ((categoryUsage.get(target.name) || 0)>0){
+      alert('已经存在记账记录的分类不能删除');
+      return;
+    }
+    const next = categories.filter((_,i)=> i!==index);
+    if (next.length===0){ alert('至少保留一个分类'); return; }
+    setCategories(next);
+    setCategory(cur=> cur===target.name? next[0]?.name || '': cur);
+    setEditDraft(d=> ({ ...d, category: d.category===target.name? next[0]?.name || '': d.category }));
+    setCategoryEditing(null);
+  }
+
   function addExpense(e){
     e.preventDefault();
     const amt = parseAmount(amount);
     const finalTitle = title.trim() || '默认';
     if (!(amt>=1)) return; // 金额从 1 起步
+    const validCategory = categories.some(c=>c.name===category) ? category : (categories[0]?.name || '');
+    if (!validCategory){ alert('请先添加分类'); return; }
     const ts = new Date(dateStr+"T"+ new Date().toTimeString().slice(0,8)).getTime();
-    const item = { id: generateId(), title: finalTitle, amount: amt, ts, category };
+    const item = { id: generateId(), title: finalTitle, amount: amt, ts, category: validCategory };
     setExpenses(prev=> [item, ...prev]);
-    setTitle(""); setAmount(""); setCategory(FIXED_CATEGORIES[0].name);
+    setTitle(""); setAmount(""); setCategory(categories[0]?.name || validCategory);
   }
 
   // 软删除：移入回收站
@@ -425,18 +546,21 @@ export default function BudgetApp(){
   // 编辑：进入与保存
   function startEdit(eItem){
     setEditingId(eItem.id);
-    setEditDraft({ title: eItem.title, amount: String(eItem.amount), category: eItem.category });
+    const safeCategory = categories.some(c=>c.name===eItem.category) ? eItem.category : (categories[0]?.name || '');
+    setEditDraft({ title: eItem.title, amount: String(eItem.amount), category: safeCategory });
   }
   function cancelEdit(){ setEditingId(null); }
   function saveEdit(id){
     const amt = parseAmount(editDraft.amount);
     if (!(amt>=1) || !editDraft.title.trim()) return;
-    setExpenses(prev=> prev.map(x=> x.id===id? {...x, title: editDraft.title.trim(), amount: amt, category: editDraft.category }: x));
+    const finalCategory = categories.some(c=>c.name===editDraft.category) ? editDraft.category : (categories[0]?.name || '');
+    if (!finalCategory) return;
+    setExpenses(prev=> prev.map(x=> x.id===id? {...x, title: editDraft.title.trim(), amount: amt, category: finalCategory }: x));
     setEditingId(null);
   }
 
   // 图表数据与颜色映射
-  const colorMap = Object.fromEntries(FIXED_CATEGORIES.map(c=>[c.name, c.color]));
+  const colorMap = useMemo(()=> Object.fromEntries(categories.map(c=>[c.name, c.color])), [categories]);
   const weekByCat = groupByCategory(expensesWeek);
   const monthByCat = groupByCategory(expensesMonth);
 
@@ -512,7 +636,7 @@ export default function BudgetApp(){
         {tab === 'trend' && (
           <>
             {/* 主布局：录入 + 设置 + 当日(表单日期)列表 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* 录入表单 */}
               <Card className="lg:col-span-2">
                 <div className="flex items中心 gap-2 mb-4">
@@ -523,25 +647,13 @@ export default function BudgetApp(){
                   <input type="text" placeholder="事项，如 吃饭/地铁/咖啡" className="md:col-span-2 w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
                   <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
                   <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
-                  <div className="md:col-span-4"><CategorySelect value={category} onChange={setCategory} /></div>
-                  <button type="submit" className="md:col-span-4 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 text-white px-4 py-2 hover:opacity-95 active:scale-[.99] transition"><Plus className="w-4 h-4" /> 添加</button>
+                  <div className="md:col-span-4"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
+                  <div className="md:col-span-4 flex flex-wrap gap-2">
+                    <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 text-white px-4 py-2 hover:opacity-95 active:scale-[.99] transition"><Plus className="w-4 h-4" /> 添加</button>
+                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={()=>adjustFormDate(-1)}>前一天</button>
+                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={()=>adjustFormDate(1)}>后一天</button>
+                  </div>
                 </form>
-              </Card>
-
-              {/* 设置 */}
-              <Card>
-                <div className="flex items-center gap-2 mb-4"><SettingsIcon className="w-5 h-5" /><h2 className="font-semibold">设置</h2></div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm text-gray-600">每日预算 (元)</label>
-                    <input type="number" step="1" min={1} className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={settings.dailyBudget} onChange={(e)=> setSettings({ ...settings, dailyBudget: Math.max(1, parseAmount(e.target.value)) })} />
-                  </div>
-                  <div>
-                    <label className="block text-sm text-gray-600">月度预算 (元，可选)</label>
-                    <input type="number" step="1" min={1} className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={settings.monthlyBudget || 0} onChange={(e)=> setSettings({ ...settings, monthlyBudget: Math.max(0, parseAmount(e.target.value)) })} />
-                    <p className="text-xs text-gray-500 mt-1">为空或 0 时，按每日预算 × 当月天数计算。</p>
-                  </div>
-                </div>
               </Card>
             </div>
 
@@ -632,7 +744,7 @@ export default function BudgetApp(){
                               <input className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.title} onChange={ev=>setEditDraft(d=>({...d, title: ev.target.value}))} />
                               <input type="number" min={1} step="1" className="rounded-xl border border-gray-200 px-3 py-1 w-28" value={editDraft.amount} onChange={ev=>setEditDraft(d=>({...d, amount: ev.target.value}))} />
                               <select className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.category} onChange={ev=>setEditDraft(d=>({...d, category: ev.target.value}))}>
-                                {FIXED_CATEGORIES.map(c=> <option key={c.name} value={c.name}>{c.name}</option>)}
+                                {categories.map(c=> <option key={c.name} value={c.name}>{c.name}</option>)}
                               </select>
                               <div className="ml-auto flex gap-2">
                                 <button className="px-3 py-1 rounded-xl bg黑 text白 text-sm" onClick={()=>saveEdit(e.id)}>保存</button>
@@ -835,6 +947,88 @@ export default function BudgetApp(){
                       )}
                     </div>
                   </div>
+                </div>
+              </Card>
+            </div>
+          </>
+        )}
+
+        {tab === 'settings' && (
+          <>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <Card>
+                <div className="flex items-center gap-2 mb-4"><SettingsIcon className="w-5 h-5" /><h2 className="font-semibold">预算设置</h2></div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm text-gray-600">每日预算 (元)</label>
+                    <input type="number" step="1" min={1} className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={settings.dailyBudget} onChange={(e)=> setSettings({ ...settings, dailyBudget: Math.max(1, parseAmount(e.target.value)) })} />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-gray-600">月度预算 (元，可选)</label>
+                    <input type="number" step="1" min={0} className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={settings.monthlyBudget || 0} onChange={(e)=> setSettings({ ...settings, monthlyBudget: Math.max(0, parseAmount(e.target.value)) })} />
+                    <p className="text-xs text-gray-500 mt-1">为空或 0 时，按每日预算 × 当月天数计算。</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="lg:col-span-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+                  <div className="flex items-center gap-2"><Tag className="w-5 h-5" /><h2 className="font-semibold">分类管理</h2></div>
+                  <div className="text-xs text-gray-400">共 {categories.length} 个分类</div>
+                </div>
+                <form onSubmit={handleAddCategory} className="grid gap-3 sm:grid-cols-[minmax(0,220px),minmax(0,140px),auto]">
+                  <input type="text" placeholder="分类名称，如 交通 / 娱乐" className="rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={categoryForm.name} onChange={(ev)=>setCategoryForm(form=>({ ...form, name: ev.target.value }))} />
+                  <div className="flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2">
+                    <span className="text-xs text-gray-500">颜色</span>
+                    <input type="color" className="h-8 w-12 cursor-pointer border-none bg-transparent p-0" value={categoryForm.color} onChange={(ev)=>setCategoryForm(form=>({ ...form, color: ev.target.value }))} />
+                  </div>
+                  <button type="submit" className="rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-sm font-medium text-white hover:opacity-95 active:scale-[.99] transition">添加分类</button>
+                </form>
+                <p className="mt-2 text-xs text-gray-500">分类会同步在新增消费、历史编辑、统计等模块中使用。</p>
+                <div className="mt-6 space-y-3">
+                  {categories.length===0 ? (
+                    <div className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-sm text-gray-500">暂无分类，请先添加一个分类。</div>
+                  ) : (
+                    <ul className="space-y-3">
+                      {categories.map((c, idx)=>{
+                        const usage = categoryUsage.get(c.name) || 0;
+                        const isEditing = !!categoryEditing && categoryEditing.index===idx;
+                        return (
+                          <li key={c.name} className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
+                            {isEditing ? (
+                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+                                <input className="rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={categoryEditing.name} onChange={(ev)=> setCategoryEditing(state=> state? { ...state, name: ev.target.value }: state)} placeholder="分类名称" />
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xs text-gray-500">颜色</span>
+                                  <input type="color" className="h-9 w-12 cursor-pointer border-none bg-transparent p-0" value={categoryEditing.color} onChange={(ev)=> setCategoryEditing(state=> state? { ...state, color: ev.target.value }: state)} />
+                                </div>
+                                <div className="ml-auto flex gap-2">
+                                  <button type="button" className="rounded-xl bg-black px-4 py-2 text-sm text-white" onClick={submitCategoryEdit}>保存</button>
+                                  <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={cancelCategoryEdit}>取消</button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span className="inline-flex h-4 w-4 rounded-full border border-gray-200" style={{ backgroundColor: c.color }} />
+                                  <span className="text-sm font-medium text-gray-900">{c.name}</span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                  <span>已使用 {usage} 次</span>
+                                </div>
+                                <div className="flex gap-2 md:ml-auto">
+                                  <button type="button" className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={()=>startCategoryEditForm(idx)}>修改</button>
+                                  <button type="button" className="rounded-xl border px-4 py-2 text-sm transition" disabled={usage>0} onClick={()=>removeCategory(idx)} title={usage>0? '已有记账引用该分类，无法删除':''}>
+                                    <span className={cn(usage>0? 'text-gray-400':'text-red-500')}>删除</span>
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </div>
               </Card>
             </div>
