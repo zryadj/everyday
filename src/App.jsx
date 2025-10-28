@@ -133,7 +133,13 @@ function eachDayBetween(start, end){ const arr=[]; const d=new Date(startOfDay(s
 function trendDaily(expenses, days){ const end=new Date(); const start=new Date(); start.setDate(end.getDate()-(days-1)); const daysArr=eachDayBetween(start,end); const byDate=new Map(); for (const e of expenses){ const iso=toISODate(e.ts); byDate.set(iso,(byDate.get(iso)||0)+(e.amount||0)); } return daysArr.map(d=>{ const iso=toISODate(d); return { date: iso.slice(5), amount: byDate.get(iso)||0 }; }); }
 
 function Badge({children,color}){ const bg=`${color}22`; const border=`${color}55`; return <span className="px-2 py-0.5 rounded-lg text-xs font-medium" style={{backgroundColor:bg,color,border:`1px solid ${border}`}}>{children}</span>; }
-function Card({ className="", children }){ return <div className={cn("rounded-2xl bg-white/80 backdrop-blur shadow-sm ring-1 ring-black/5 p-5", className)}>{children}</div>; }
+function Card({ className="", children }){
+  return (
+    <div className={cn("w-full rounded-2xl bg-white/80 backdrop-blur shadow-sm ring-1 ring-black/5 p-4 sm:p-5", className)}>
+      {children}
+    </div>
+  );
+}
 function Stat({ icon, label, value, sub, danger }){ const Icon=icon; const isDanger = !!danger; return (
   <div className="flex items-center gap-3">
     <div className={cn("p-2 rounded-xl", isDanger?"bg-red-50":"bg-gray-100")}> <Icon className={cn("w-5 h-5", isDanger?"text-red-600":"text-gray-700")} /> </div>
@@ -148,7 +154,7 @@ function Stat({ icon, label, value, sub, danger }){ const Icon=icon; const isDan
 function CategorySelect({ value, onChange, categories }){
   const list = categories && categories.length>0 ? categories : DEFAULT_CATEGORIES;
   return (
-    <div className="grid grid-cols-4 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       {list.map(c=> (
         <button
           key={c.name}
@@ -175,7 +181,7 @@ function Navbar({ tab, setTab }){
     { key: 'trash', label: '回收', icon: Trash2 },
   ];
   return (
-    <div className="flex items-center gap-2 p-1 rounded-2xl bg-white/80 backdrop-blur ring-1 ring-black/5 w-max">
+    <div className="flex flex-wrap items-center justify-center gap-2 p-1 rounded-2xl bg-white/80 backdrop-blur ring-1 ring-black/5 w-full sm:w-auto">
       {tabs.map(t=>{
         const Icon=t.icon; const active = tab===t.key;
         return (
@@ -611,13 +617,13 @@ export default function BudgetApp(){
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-indigo-50 text-gray-900">
-      <div className="max-w-6xl mx-auto px-4 py-8">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
         {/* Header */}
-        <header className="flex items-center justify-between mb-4">
+        <header className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <h1 className="text-2xl font-bold tracking-tight">活着</h1>
           <Navbar tab={tab} setTab={setTab} />
         </header>
-        <div className="text-sm text-gray-500 mb-6">{toISODate(new Date())}</div>
+        <div className="mb-6 text-sm text-gray-500 text-center md:text-left">{toISODate(new Date())}</div>
 
         {/* 顶部统计（所有页面都显示） */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -636,67 +642,70 @@ export default function BudgetApp(){
         {tab === 'trend' && (
           <>
             {/* 主布局：录入 + 设置 + 当日(表单日期)列表 */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
               {/* 录入表单 */}
-              <Card className="lg:col-span-2">
-                <div className="flex items中心 gap-2 mb-4">
+              <Card className="flex flex-col">
+                <div className="mb-4 flex items-center gap-2">
                   <Plus className="w-5 h-5" />
                   <h2 className="font-semibold">新增消费</h2>
                 </div>
-                <form onSubmit={addExpense} className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                <form onSubmit={addExpense} className="grid grid-cols-1 gap-3 md:grid-cols-4">
                   <input type="text" placeholder="事项，如 吃饭/地铁/咖啡" className="md:col-span-2 w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
                   <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
                   <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
                   <div className="md:col-span-4"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
                   <div className="md:col-span-4 flex flex-wrap gap-2">
-                    <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 text-white px-4 py-2 hover:opacity-95 active:scale-[.99] transition"><Plus className="w-4 h-4" /> 添加</button>
-                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={()=>adjustFormDate(-1)}>前一天</button>
-                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={()=>adjustFormDate(1)}>后一天</button>
+                    <button type="submit" className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99]"><Plus className="w-4 h-4" /> 添加</button>
+                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50" onClick={()=>adjustFormDate(-1)}>前一天</button>
+                    <button type="button" className="rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50" onClick={()=>adjustFormDate(1)}>后一天</button>
                   </div>
                 </form>
               </Card>
-            </div>
 
-            {/* 所选日列表（受表单日期驱动） */}
-            <Card className="mt-6">
-              <div className="flex items-center justify-between mb-4"><h2 className="font-semibold">{dateStr} 消费（仅展示所选日期）</h2><div className="text-sm text-gray-500">共 {expensesDay.length} 条 · 已花 {formatCurrency(spentDay)}</div></div>
-              {expensesDay.length===0 ? (
-                <div className="text-sm text-gray-500">这一天还没有记录，快在上方添加一笔吧～</div>
-              ) : (
-                <>
-                  <ul className="divide-y divide-gray-100">
-                    {(showAllDay ? expensesDay : expensesDay.slice(0,3)).map(e=> (
-                      <li key={e.id} className="flex items-center justify-between py-3">
-                        <div>
-                          <div className="font-medium flex items-center gap-2">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
-                          <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
-                          <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  {expensesDay.length>3 && (
-                    <div className="mt-3 flex justify中心">
-                      <button type="button" onClick={()=>setShowAllDay(v=>!v)}
-                        className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-sm bg-gradient-to-r from-indigo-600 to-sky-500 text-white shadow-sm hover:opacity-95 active:scale-[.99] transition">
-                        {showAllDay ? '收起' : `显示全部（${expensesDay.length}）`}
-                      </button>
-                    </div>
-                  )}
-                </>
-              )}
-            </Card>
+              {/* 所选日列表（受表单日期驱动） */}
+              <Card className="flex flex-col">
+                <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+                  <h2 className="text-base font-semibold sm:text-lg">{dateStr} 消费（仅展示所选日期）</h2>
+                  <div className="text-sm text-gray-500 sm:ml-auto">共 {expensesDay.length} 条 · 已花 {formatCurrency(spentDay)}</div>
+                </div>
+                {expensesDay.length===0 ? (
+                  <div className="text-sm text-gray-500">这一天还没有记录，快在上方添加一笔吧～</div>
+                ) : (
+                  <>
+                    <ul className="divide-y divide-gray-100">
+                      {(showAllDay ? expensesDay : expensesDay.slice(0,3)).map(e=> (
+                        <li key={e.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="w-full">
+                            <div className="flex flex-wrap items-center gap-2 font-medium">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
+                            <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                          <div className="flex w-full items-center justify-between gap-4 sm:w-auto sm:justify-end">
+                            <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
+                            <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    {expensesDay.length>3 && (
+                      <div className="mt-3 flex justify-center sm:justify-end">
+                        <button type="button" onClick={()=>setShowAllDay(v=>!v)}
+                          className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:opacity-95 active:scale-[.99]">
+                          {showAllDay ? '收起' : `显示全部（${expensesDay.length}）`}
+                        </button>
+                      </div>
+                    )}
+                  </>
+                )}
+              </Card>
+            </div>
 
             {/* 趋势折线（7天/30天，每天合计） */}
             <Card className="mt-6">
-              <div className="flex items-center justify-between mb-2">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex items-center gap-2"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">趋势（{trendDays} 天）</h2></div>
                 <div className="flex items-center gap-2">
                   <button className={cn("px-2 py-1 rounded-lg border", trendDays===7?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(7)}>7天</button>
-                  <button className={cn("px-2 py-1 rounded-lg border", trendDays===30?"bg-black text-white":"hover:bg灰-50")} onClick={()=>setTrendDays(30)}>30天</button>
+                  <button className={cn("px-2 py-1 rounded-lg border", trendDays===30?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(30)}>30天</button>
                 </div>
               </div>
               <div className="h-64">
@@ -734,7 +743,10 @@ export default function BudgetApp(){
                   </form>
                 </Card>
                 <Card>
-                  <div className="flex items-center justify-between mb-4"><h3 className="font-semibold">{toISODate(selectedDate)} 明细</h3><div className="text-sm text-gray-500">合计 {formatCurrency(spentSelected)}</div></div>
+                  <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+                    <h3 className="font-semibold">{toISODate(selectedDate)} 明细</h3>
+                    <div className="text-sm text-gray-500 sm:ml-auto">合计 {formatCurrency(spentSelected)}</div>
+                  </div>
                   {expensesSelected.length===0? <div className="text-sm text-gray-500">这一天没有记录</div> : (
                     <ul className="divide-y divide-gray-100">
                       {expensesSelected.map(e=> (
@@ -752,15 +764,15 @@ export default function BudgetApp(){
                               </div>
                             </div>
                           ) : (
-                            <div className="flex items-center justify-between">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
-                                <div className="font-medium flex items-center gap-2">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
+                                <div className="flex flex-wrap items-center gap-2 font-medium">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
                                 <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
                               </div>
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 sm:justify-end">
                                 <div className="tabular-nums font-semibold">-{formatCurrency(e.amount)}</div>
-                                <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="编辑" onClick={()=>startEdit(e)}><Pencil className="w-4 h-4" /></button>
-                                <button className="p-2 rounded-lg hover:bg-gray-100 text-gray-500" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
+                                <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="编辑" onClick={()=>startEdit(e)}><Pencil className="w-4 h-4" /></button>
+                                <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
                               </div>
                             </div>
                           )}
@@ -865,7 +877,7 @@ export default function BudgetApp(){
                         <div className="text-xs uppercase tracking-wide text-gray-400">近一年单笔最低</div>
                         {yearlyStats.minExpense ? (
                           <div className="mt-3 space-y-2 text-sm text-gray-600">
-                            <div className="flex items-baseline justify-between gap-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
                               <span className="font-medium text-gray-900 truncate">{yearlyStats.minExpense.title}</span>
                               <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(yearlyStats.minExpense.amount)}</span>
                             </div>
@@ -882,7 +894,7 @@ export default function BudgetApp(){
                         <div className="text-xs uppercase tracking-wide text-gray-400">近一年单笔最高</div>
                         {yearlyStats.maxExpense ? (
                           <div className="mt-3 space-y-2 text-sm text-gray-600">
-                            <div className="flex items-baseline justify-between gap-3">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
                               <span className="font-medium text-gray-900 truncate">{yearlyStats.maxExpense.title}</span>
                               <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(yearlyStats.maxExpense.amount)}</span>
                             </div>
@@ -902,7 +914,7 @@ export default function BudgetApp(){
                       <div className="text-xs uppercase tracking-wide text-gray-400">单日最低</div>
                       {thirtyDayStats.minDay ? (
                         <div className="mt-3 space-y-3">
-                          <div className="flex items-baseline justify-between gap-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
                             <span className="text-sm font-medium text-gray-900">{thirtyDayStats.minDay.date}</span>
                             <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(thirtyDayStats.minDay.total)}</span>
                           </div>
@@ -926,7 +938,7 @@ export default function BudgetApp(){
                       <div className="text-xs uppercase tracking-wide text-gray-400">单日最高</div>
                       {thirtyDayStats.maxDay ? (
                         <div className="mt-3 space-y-3">
-                          <div className="flex items-baseline justify-between gap-3">
+                          <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
                             <span className="text-sm font-medium text-gray-900">{thirtyDayStats.maxDay.date}</span>
                             <span className="text-lg font-semibold text-gray-900 tabular-nums">{formatCurrency(thirtyDayStats.maxDay.total)}</span>
                           </div>
