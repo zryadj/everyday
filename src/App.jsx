@@ -659,9 +659,9 @@ export default function BudgetApp(){
         {tab === 'trend' && (
           <>
             {/* 主布局：录入 + 设置 + 当日(表单日期)列表 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:items-start">
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:auto-rows-fr lg:items-stretch">
               {/* 录入表单 */}
-              <Card className="flex flex-col">
+              <Card className="flex h-full flex-col">
                 <div className="mb-4 flex items-center gap-2">
                   <Plus className="w-5 h-5" />
                   <h2 className="font-semibold">新增消费</h2>
@@ -693,7 +693,7 @@ export default function BudgetApp(){
               </Card>
 
               {/* 所选日列表（受表单日期驱动） */}
-              <Card className="flex flex-col">
+              <Card className="flex h-full flex-col">
                 <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
                   <h2 className="text-base font-semibold sm:text-lg">{dateStr} 消费（仅展示所选日期）</h2>
                   <div className="text-sm text-gray-500 sm:ml-auto">共 {expensesDay.length} 条 · 已花 {formatCurrency(spentDay)}</div>
@@ -729,28 +729,6 @@ export default function BudgetApp(){
               </Card>
             </div>
 
-            {/* 趋势折线（7天/30天，每天合计） */}
-            <Card className="mt-6">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center gap-2"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">趋势（{trendDays} 天）</h2></div>
-                <div className="flex items-center gap-2">
-                  <button className={cn("px-2 py-1 rounded-lg border", trendDays===7?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(7)}>7天</button>
-                  <button className={cn("px-2 py-1 rounded-lg border", trendDays===30?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(30)}>30天</button>
-                </div>
-              </div>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis />
-                    <Tooltip formatter={(v)=>formatCurrency(v)} />
-                    <Legend />
-                    <Line type="monotone" dataKey="amount" name="金额" stroke="#111827" strokeWidth={2} dot={false} isAnimationActive />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </Card>
           </>
         )}
 
@@ -842,14 +820,38 @@ export default function BudgetApp(){
 
         {tab === 'board' && (
           <>
-            {/* 看板统计：周饼 + 月柱（细长条，阴影高亮） */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid gap-6">
+              {/* 趋势折线（7天/30天，每天合计） */}
               <Card>
-                <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本周分类统计</h2></div>
-                {weekByCat.length===0 ? <div className="text-sm text-gray-500">本周暂无数据</div> : (
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">趋势（{trendDays} 天）</h2></div>
+                  <div className="flex items-center gap-2">
+                    <button className={cn("px-2 py-1 rounded-lg border", trendDays===7?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(7)}>7天</button>
+                    <button className={cn("px-2 py-1 rounded-lg border", trendDays===30?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(30)}>30天</button>
+                  </div>
+                </div>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="date" />
+                      <YAxis />
+                      <Tooltip formatter={(v)=>formatCurrency(v)} />
+                      <Legend />
+                      <Line type="monotone" dataKey="amount" name="金额" stroke="#111827" strokeWidth={2} dot={false} isAnimationActive />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </Card>
+
+              {/* 看板统计：周饼 + 月柱（细长条，阴影高亮） */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                <Card>
+                  <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本周分类统计</h2></div>
+                  {weekByCat.length===0 ? <div className="text-sm text-gray-500">本周暂无数据</div> : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
                         <defs>
                           <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
                             <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.25" />
@@ -862,17 +864,17 @@ export default function BudgetApp(){
                         </Pie>
                         <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
                         <Legend />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </Card>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </Card>
 
-              <Card>
-                <div className="flex items中心 gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本月分类统计</h2></div>
-                {monthByCat.length===0 ? <div className="text-sm text-gray-500">本月暂无数据</div> : (
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
+                <Card>
+                  <div className="flex items中心 gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本月分类统计</h2></div>
+                  {monthByCat.length===0 ? <div className="text-sm text-gray-500">本月暂无数据</div> : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={monthByCat} onMouseMove={(s)=>{ const p=s?.activePayload?.[0]?.payload; setActiveBarName(p?.name||null); }} onMouseLeave={()=>setActiveBarName(null)}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="name" />
@@ -889,15 +891,15 @@ export default function BudgetApp(){
                           ))}
                         </Bar>
                       </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                )}
-              </Card>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </Card>
 
-              <Card className="lg:col-span-2">
-                <div className="flex items-center gap-2 mb-4"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">消费统计</h2></div>
-                <div className="grid gap-6 md:grid-cols-2">
-                  <div className="space-y-4">
+                <Card className="lg:col-span-2">
+                  <div className="flex items-center gap-2 mb-4"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">消费统计</h2></div>
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <div className="space-y-4">
                     <div className="rounded-2xl border border-gray-100 bg-white/70 p-4 shadow-sm">
                       <div className="text-xs uppercase tracking-wide text-gray-400">近30天合计</div>
                       <div className="mt-2 text-2xl font-semibold tabular-nums text-gray-900">{formatCurrency(thirtyDayStats.total)}</div>
@@ -990,7 +992,8 @@ export default function BudgetApp(){
                     </div>
                   </div>
                 </div>
-              </Card>
+                </Card>
+              </div>
             </div>
           </>
         )}
