@@ -169,10 +169,23 @@ function CategorySelect({ value, onChange, categories }){
             key={c.name}
             type="button"
             onClick={()=>onChange(c.name)}
-            className={cn("w-full rounded-xl border px-2 py-1 text-sm flex items-center justify-center gap-2", value===c.name?"border-transparent text-white":"border-gray-200")}
-            style={{ backgroundColor: value===c.name? c.color: '#fff', color: value===c.name? readableTextColor(c.color): undefined }}
+            className={cn(
+              "w-full rounded-xl border px-2 py-1 text-sm flex items-center justify-center gap-2",
+              value===c.name?"border-transparent text-white":"border-gray-200"
+            )}
+            style={{
+              backgroundColor: value===c.name? c.color: '#fff',
+              color: value===c.name? readableTextColor(c.color): undefined,
+            }}
           >
-            <span className="inline-block w-2.5 h-2.5 rounded-full" style={{backgroundColor:c.color}} />{c.name}
+            <span
+              className={cn(
+                "inline-block w-2.5 h-2.5 rounded-full",
+                value===c.name?"ring-1 ring-inset ring-white/70":""
+              )}
+              style={{ backgroundColor: value===c.name? '#fff': c.color }}
+            />
+            {c.name}
           </button>
         ))}
         {showToggle && (
