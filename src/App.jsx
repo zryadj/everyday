@@ -10,7 +10,9 @@ import {
   PieChart as PieIcon,
   LineChart as LineIcon,
   Pencil,
-  Tag
+  Tag,
+  ArrowUp,
+  ArrowDown,
 } from "lucide-react";
 
 import {
@@ -480,10 +482,20 @@ export default function BudgetApp(){
     if (!category){ setCategory(name); }
   }
 
+  useEffect(()=>{
+    setCategoryEditing(state=>{
+      if (!state) return state;
+      const nextIndex = categories.findIndex(item=> item.name === (state.originalName || state.name));
+      if (nextIndex === -1) return null;
+      if (nextIndex === state.index) return state;
+      return { ...state, index: nextIndex };
+    });
+  }, [categories]);
+
   function startCategoryEditForm(index){
     const target = categories[index];
     if (!target) return;
-    setCategoryEditing({ index, name: target.name, color: target.color });
+    setCategoryEditing({ index, name: target.name, color: target.color, originalName: target.name });
   }
 
   function cancelCategoryEdit(){ setCategoryEditing(null); }
@@ -510,6 +522,17 @@ export default function BudgetApp(){
       setEditDraft(d=> ({ ...d, category: d.category===target.name? name: d.category }));
     }
     setCategoryEditing(null);
+  }
+
+  function moveCategory(index, delta){
+    setCategories(prev=>{
+      const nextIndex = index + delta;
+      if (nextIndex<0 || nextIndex>=prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(index, 1);
+      next.splice(nextIndex, 0, moved);
+      return next;
+    });
   }
 
   function removeCategory(index){
@@ -1062,14 +1085,38 @@ export default function BudgetApp(){
                                   <span className="inline-flex h-4 w-4 rounded-full border border-gray-200" style={{ backgroundColor: c.color }} />
                                   <span className="text-sm font-medium text-gray-900">{c.name}</span>
                                 </div>
-                                <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                                  <span>已使用 {usage} 次</span>
-                                </div>
-                                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3 md:ml-auto">
-                                  <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 sm:w-auto" onClick={()=>startCategoryEditForm(idx)}>修改</button>
-                                  <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm transition sm:w-auto" disabled={usage>0} onClick={()=>removeCategory(idx)} title={usage>0? '已有记账引用该分类，无法删除':''}>
-                                    <span className={cn(usage>0? 'text-gray-400':'text-red-500')}>删除</span>
-                                  </button>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4 md:ml-auto md:flex-1 md:justify-end">
+                                  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                    <span>已使用 {usage} 次</span>
+                                    <div className="flex gap-1">
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
+                                        onClick={()=>moveCategory(idx, -1)}
+                                        disabled={idx===0}
+                                        title="上移"
+                                      >
+                                        <ArrowUp className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">上移</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-600 transition hover:bg-gray-50 disabled:opacity-40"
+                                        onClick={()=>moveCategory(idx, 1)}
+                                        disabled={idx===categories.length-1}
+                                        title="下移"
+                                      >
+                                        <ArrowDown className="h-3.5 w-3.5" />
+                                        <span className="hidden sm:inline">下移</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:gap-3 md:ml-0">
+                                    <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 sm:w-auto" onClick={()=>startCategoryEditForm(idx)}>修改</button>
+                                    <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm transition sm:w-auto" disabled={usage>0} onClick={()=>removeCategory(idx)} title={usage>0? '已有记账引用该分类，无法删除':''}>
+                                      <span className={cn(usage>0? 'text-gray-400':'text-red-500')}>删除</span>
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
                             )}
