@@ -634,107 +634,111 @@ export default function BudgetApp(){
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-indigo-50 text-gray-900">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
         {/* Header */}
-        <header className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">活着</h1>
+        <header className="flex flex-col gap-4 rounded-3xl bg-white/70 p-4 shadow-sm ring-1 ring-black/5 backdrop-blur md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">活着</h1>
+            <p className="mt-1 text-sm text-gray-500 md:hidden">{toISODate(new Date())}</p>
+          </div>
           <Navbar tab={tab} setTab={setTab} />
+          <p className="hidden text-sm text-gray-500 md:block">{toISODate(new Date())}</p>
         </header>
-        <div className="mb-6 text-sm text-gray-500 text-center md:text-left">{toISODate(new Date())}</div>
 
-        {/* 顶部统计（所有页面都显示） */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <Stat icon={Wallet} label="当日结余" value={formatCurrency(leftToday)} sub={`预算 ${formatCurrency(settings.dailyBudget)} · 已花 ${formatCurrency(spentDay)} · 日期 ${dateStr}`} danger={leftToday<0} />
-          </Card>
-          <Card>
-            <Stat icon={CalendarDays} label="本周结余 (周一-周日)" value={formatCurrency(leftWeek)} sub={`预算 ${formatCurrency(weeklyBudget)} · 已花 ${formatCurrency(spentWeek)}`} danger={leftWeek<0} />
-          </Card>
-          <Card>
-            <Stat icon={CalendarRange} label="本月结余" value={formatCurrency(leftMonth)} sub={`预算 ${formatCurrency(monthlyBudget)} · 已花 ${formatCurrency(spentMonth)}`} danger={leftMonth<0} />
-          </Card>
-        </div>
+        <main className="mt-6 flex-1 space-y-6">
+          {/* 顶部统计（所有页面都显示） */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <Stat icon={Wallet} label="当日结余" value={formatCurrency(leftToday)} sub={`预算 ${formatCurrency(settings.dailyBudget)} · 已花 ${formatCurrency(spentDay)} · 日期 ${dateStr}`} danger={leftToday<0} />
+            </Card>
+            <Card>
+              <Stat icon={CalendarDays} label="本周结余 (周一-周日)" value={formatCurrency(leftWeek)} sub={`预算 ${formatCurrency(weeklyBudget)} · 已花 ${formatCurrency(spentWeek)}`} danger={leftWeek<0} />
+            </Card>
+            <Card>
+              <Stat icon={CalendarRange} label="本月结余" value={formatCurrency(leftMonth)} sub={`预算 ${formatCurrency(monthlyBudget)} · 已花 ${formatCurrency(spentMonth)}`} danger={leftMonth<0} />
+            </Card>
+          </div>
 
-        {/* 页内容 */}
-        {tab === 'trend' && (
-          <>
-            {/* 主布局：录入 + 设置 + 当日(表单日期)列表 */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:auto-rows-fr lg:items-stretch">
-              {/* 录入表单 */}
-              <Card className="flex h-full flex-col">
-                <div className="mb-4 flex items-center gap-2">
-                  <Plus className="w-5 h-5" />
-                  <h2 className="font-semibold">新增消费</h2>
-                </div>
-                <form onSubmit={addExpense} className="grid grid-cols-1 gap-3 md:grid-cols-[1.75fr_1fr_1.5fr]">
-                  <input type="text" placeholder="事项:吃饭/地铁/咖啡" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
-                  <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
-                  <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
-                  <div className="md:col-span-3"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
-                  <div className="md:col-span-3 grid grid-cols-1 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                    <button
-                      type="button"
-                      className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
-                      onClick={()=>adjustFormDate(-1)}
-                    >前一天</button>
-                    <button
-                      type="button"
-                      className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
-                      onClick={()=>adjustFormDate(1)}
-                    >后一天</button>
-                    <button
-                      type="submit"
-                      className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99] md:col-span-2"
-                    >
-                      <Plus className="w-4 h-4" /> 添加
-                    </button>
+          {/* 页内容 */}
+          {tab === 'trend' && (
+            <>
+              {/* 主布局：录入 + 设置 + 当日(表单日期)列表 */}
+              <div className="grid grid-cols-1 gap-6 lg:auto-rows-fr lg:grid-cols-2 lg:items-stretch">
+                {/* 录入表单 */}
+                <Card className="flex h-full flex-col">
+                  <div className="mb-4 flex items-center gap-2">
+                    <Plus className="w-5 h-5" />
+                    <h2 className="font-semibold">新增消费</h2>
                   </div>
-                </form>
-              </Card>
+                  <form onSubmit={addExpense} className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-[1.75fr_1fr_1.5fr]">
+                    <input type="text" placeholder="事项:吃饭/地铁/咖啡" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={title} onChange={(e)=>setTitle(e.target.value)} />
+                    <input type="number" step="1" min={1} placeholder="金额 (元)" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400" value={amount} onChange={(e)=>setAmount(e.target.value)} />
+                    <input type="date" className="w-full rounded-xl border border-gray-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400 sm:col-span-2 md:col-span-1" value={dateStr} onChange={(e)=>{ setDateStr(e.target.value); setShowAllDay(false); }} />
+                    <div className="sm:col-span-2 md:col-span-3"><CategorySelect value={category} onChange={setCategory} categories={categories} /></div>
+                    <div className="grid grid-cols-1 gap-2 sm:col-span-2 sm:grid-cols-3 md:col-span-3 md:grid-cols-4">
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
+                        onClick={()=>adjustFormDate(-1)}
+                      >前一天</button>
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-gray-200 px-4 py-2 text-sm transition hover:bg-gray-50"
+                        onClick={()=>adjustFormDate(1)}
+                      >后一天</button>
+                      <button
+                        type="submit"
+                        className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-4 py-2 text-white transition hover:opacity-95 active:scale-[.99] md:col-span-2"
+                      >
+                        <Plus className="w-4 h-4" /> 添加
+                      </button>
+                    </div>
+                  </form>
+                </Card>
 
-              {/* 所选日列表（受表单日期驱动） */}
-              <Card className="flex h-full flex-col">
-                <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
-                  <h2 className="text-base font-semibold sm:text-lg">{dateStr} 消费（仅展示所选日期）</h2>
-                  <div className="text-sm text-gray-500 sm:ml-auto">共 {expensesDay.length} 条 · 已花 {formatCurrency(spentDay)}</div>
-                </div>
-                {expensesDay.length===0 ? (
-                  <div className="text-sm text-gray-500">这一天还没有记录，快在上方添加一笔吧～</div>
-                ) : (
-                  <>
-                    <ul className="divide-y divide-gray-100">
-                      {(showAllDay ? expensesDay : expensesDay.slice(0,3)).map(e=> (
-                        <li key={e.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
-                          <div className="flex-1">
-                            <div className="flex flex-wrap items-center gap-2 font-medium">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
-                            <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
-                          </div>
-                          <div className="flex items-center gap-3 sm:ml-auto sm:min-w-[140px] sm:justify-end">
-                            <div className="tabular-nums text-right font-semibold sm:text-right">-{formatCurrency(e.amount)}</div>
-                            <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                    {expensesDay.length>3 && (
-                      <div className="mt-3 flex justify-center sm:justify-end">
-                        <button type="button" onClick={()=>setShowAllDay(v=>!v)}
-                          className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:opacity-95 active:scale-[.99]">
-                          {showAllDay ? '收起' : `显示全部（${expensesDay.length}）`}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </Card>
-            </div>
+                {/* 所选日列表（受表单日期驱动） */}
+                <Card className="flex h-full flex-col">
+                  <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-3">
+                    <h2 className="text-base font-semibold sm:text-lg">{dateStr} 消费（仅展示所选日期）</h2>
+                    <div className="text-sm text-gray-500 sm:ml-auto">共 {expensesDay.length} 条 · 已花 {formatCurrency(spentDay)}</div>
+                  </div>
+                  {expensesDay.length===0 ? (
+                    <div className="text-sm text-gray-500">这一天还没有记录，快在上方添加一笔吧～</div>
+                  ) : (
+                    <>
+                      <ul className="divide-y divide-gray-100">
+                        {(showAllDay ? expensesDay : expensesDay.slice(0,3)).map(e=> (
+                          <li key={e.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center">
+                            <div className="flex-1">
+                              <div className="flex flex-wrap items-center gap-2 font-medium">{e.title}<Badge color={colorMap[e.category] || '#e5e7eb'}>{e.category}</Badge></div>
+                              <div className="text-xs text-gray-400">{new Date(e.ts).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })}</div>
+                            </div>
+                            <div className="flex items-center gap-3 sm:ml-auto sm:min-w-[140px] sm:justify-end">
+                              <div className="tabular-nums text-right font-semibold sm:text-right">-{formatCurrency(e.amount)}</div>
+                              <button className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100" title="删除" onClick={()=>moveToTrash(e.id)}><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                      {expensesDay.length>3 && (
+                        <div className="mt-3 flex justify-center sm:justify-end">
+                          <button type="button" onClick={()=>setShowAllDay(v=>!v)}
+                            className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-indigo-600 to-sky-500 px-3 py-1.5 text-sm text-white shadow-sm transition hover:opacity-95 active:scale-[.99]">
+                            {showAllDay ? '收起' : `显示全部（${expensesDay.length}）`}
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </Card>
+              </div>
 
-          </>
-        )}
+            </>
+          )}
 
-        {tab === 'history' && (
-          <>
-            <div className="grid gap-6">
+          {tab === 'history' && (
+            <>
+              <div className="grid gap-6">
               {/* 历史浏览（日历 + 当日明细，可编辑/删除） */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <Card>
@@ -766,9 +770,9 @@ export default function BudgetApp(){
                               <select className="rounded-xl border border-gray-200 px-3 py-1" value={editDraft.category} onChange={ev=>setEditDraft(d=>({...d, category: ev.target.value}))}>
                                 {categories.map(c=> <option key={c.name} value={c.name}>{c.name}</option>)}
                               </select>
-                              <div className="ml-auto flex gap-2">
-                                <button className="px-3 py-1 rounded-xl bg黑 text白 text-sm" onClick={()=>saveEdit(e.id)}>保存</button>
-                                <button className="px-3 py-1 rounded-xl border text-sm" onClick={cancelEdit}>取消</button>
+                              <div className="flex flex-col gap-2 sm:flex-row sm:justify-end md:ml-auto">
+                                <button className="w-full rounded-xl bg-black px-3 py-1 text-sm text-white sm:w-auto" onClick={()=>saveEdit(e.id)}>保存</button>
+                                <button className="w-full rounded-xl border px-3 py-1 text-sm sm:w-auto" onClick={cancelEdit}>取消</button>
                               </div>
                             </div>
                           ) : (
@@ -1047,9 +1051,9 @@ export default function BudgetApp(){
                                   <span className="text-xs text-gray-500">颜色</span>
                                   <input type="color" className="h-9 w-12 cursor-pointer border-none bg-transparent p-0" value={categoryEditing.color} onChange={(ev)=> setCategoryEditing(state=> state? { ...state, color: ev.target.value }: state)} />
                                 </div>
-                                <div className="ml-auto flex gap-2">
-                                  <button type="button" className="rounded-xl bg-black px-4 py-2 text-sm text-white" onClick={submitCategoryEdit}>保存</button>
-                                  <button type="button" className="rounded-xl border px-4 py-2 text-sm" onClick={cancelCategoryEdit}>取消</button>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:justify-end md:ml-auto">
+                                  <button type="button" className="w-full rounded-xl bg-black px-4 py-2 text-sm text-white sm:w-auto" onClick={submitCategoryEdit}>保存</button>
+                                  <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm sm:w-auto" onClick={cancelCategoryEdit}>取消</button>
                                 </div>
                               </div>
                             ) : (
@@ -1061,9 +1065,9 @@ export default function BudgetApp(){
                                 <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                                   <span>已使用 {usage} 次</span>
                                 </div>
-                                <div className="flex gap-2 md:ml-auto">
-                                  <button type="button" className="rounded-xl border px-4 py-2 text-sm hover:bg-gray-50 transition" onClick={()=>startCategoryEditForm(idx)}>修改</button>
-                                  <button type="button" className="rounded-xl border px-4 py-2 text-sm transition" disabled={usage>0} onClick={()=>removeCategory(idx)} title={usage>0? '已有记账引用该分类，无法删除':''}>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:gap-3 md:ml-auto">
+                                  <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm transition hover:bg-gray-50 sm:w-auto" onClick={()=>startCategoryEditForm(idx)}>修改</button>
+                                  <button type="button" className="w-full rounded-xl border px-4 py-2 text-sm transition sm:w-auto" disabled={usage>0} onClick={()=>removeCategory(idx)} title={usage>0? '已有记账引用该分类，无法删除':''}>
                                     <span className={cn(usage>0? 'text-gray-400':'text-red-500')}>删除</span>
                                   </button>
                                 </div>
@@ -1087,14 +1091,14 @@ export default function BudgetApp(){
               {trash.length===0 ? <div className="text-sm text-gray-500">空空如也～</div> : (
                 <ul className="divide-y divide-gray-100">
                   {trash.map(t=> (
-                    <li key={t.id} className="flex items-center justify-between py-3">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">{t.title}<Badge color={colorMap[t.category] || '#e5e7eb'}>{t.category}</Badge></div>
+                    <li key={t.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <div className="font-medium flex flex-wrap items-center gap-2">{t.title}<Badge color={colorMap[t.category] || '#e5e7eb'}>{t.category}</Badge></div>
                         <div className="text-xs text-gray-400">原始金额：{formatCurrency(t.amount)} · 原始日期：{toISODate(t.ts)} · 删除于：{new Date(t.deletedAt).toLocaleString()}</div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button className="px-3 py-1 rounded-xl bg-black text-white text-sm" onClick={()=>restoreFromTrash(t.id)}>恢复</button>
-                        <button className="px-3 py-1 rounded-xl border text-sm" onClick={()=>deleteForever(t.id)}>彻底删除</button>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                        <button className="w-full rounded-xl bg-black px-3 py-1 text-sm text-white sm:w-auto" onClick={()=>restoreFromTrash(t.id)}>恢复</button>
+                        <button className="w-full rounded-xl border px-3 py-1 text-sm sm:w-auto" onClick={()=>deleteForever(t.id)}>彻底删除</button>
                       </div>
                     </li>
                   ))}
@@ -1103,8 +1107,9 @@ export default function BudgetApp(){
             </Card>
           </>
         )}
+        </main>
 
-        <footer className="text-center text-xs text-gray-500 mt-8">由细胞驱动的程序</footer>
+        <footer className="mt-6 text-center text-xs text-gray-500">由细胞驱动的程序</footer>
       </div>
     </div>
   );
