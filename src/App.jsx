@@ -265,6 +265,7 @@ export default function BudgetApp(){
   // 图表交互
   const [activePieIndex, setActivePieIndex] = useState(-1);
   const [activeBarName, setActiveBarName] = useState(null);
+  const [activeYearBarName, setActiveYearBarName] = useState(null);
 
   useEffect(()=> saveSettings(settings), [settings]);
   useEffect(()=> saveExpenses(expenses), [expenses]);
@@ -294,6 +295,8 @@ export default function BudgetApp(){
   const weekEnd=endOfWeek(now).getTime();
   const monthStart=startOfMonth(now).getTime();
   const monthEnd=endOfMonth(now).getTime();
+  const yearStart=startOfDay(new Date(now.getFullYear(), 0, 1)).getTime();
+  const yearEnd=endOfDay(now).getTime();
 
   // ——— 新需求：表单日期驱动下方列表 ———
   const inputDate = new Date(dateStr+"T00:00:00");
@@ -305,6 +308,7 @@ export default function BudgetApp(){
 
   const expensesWeek = useMemo(()=> expenses.filter(e=> e.ts>=weekStart && e.ts<=weekEnd), [expenses]);
   const expensesMonth = useMemo(()=> expenses.filter(e=> e.ts>=monthStart && e.ts<=monthEnd), [expenses]);
+  const expensesYear = useMemo(()=> expenses.filter(e=> e.ts>=yearStart && e.ts<=yearEnd), [expenses]);
 
   const spentWeek = sum(expensesWeek);
   const spentMonth = sum(expensesMonth);
@@ -622,6 +626,7 @@ export default function BudgetApp(){
   const colorMap = useMemo(()=> Object.fromEntries(categories.map(c=>[c.name, c.color])), [categories]);
   const weekByCat = groupByCategory(expensesWeek);
   const monthByCat = groupByCategory(expensesMonth);
+  const yearByCat = groupByCategory(expensesYear);
 
   const trendData = useMemo(()=> trendDaily(expensesMonth, trendDays), [expensesMonth, trendDays]);
   const boardStats = useMemo(()=>{
@@ -884,8 +889,8 @@ export default function BudgetApp(){
                 </div>
               </Card>
 
-              {/* 看板统计：周饼 + 月柱（细长条，阴影高亮） */}
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              {/* 看板统计：周饼 + 月/年柱（细长条，阴影高亮） */}
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                 <Card>
                   <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本周分类统计</h2></div>
                   {weekByCat.length===0 ? <div className="text-sm text-gray-500">本周暂无数据</div> : (
@@ -911,7 +916,7 @@ export default function BudgetApp(){
                 </Card>
 
                 <Card>
-                  <div className="flex items中心 gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本月分类统计</h2></div>
+                  <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本月分类统计</h2></div>
                   {monthByCat.length===0 ? <div className="text-sm text-gray-500">本月暂无数据</div> : (
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
@@ -936,7 +941,32 @@ export default function BudgetApp(){
                   )}
                 </Card>
 
-                <Card className="lg:col-span-2">
+                <Card>
+                  <div className="flex items-center gap-2 mb-4"><PieIcon className="w-5 h-5" /><h2 className="font-semibold">本年分类统计</h2></div>
+                  {yearByCat.length===0 ? <div className="text-sm text-gray-500">本年暂无数据</div> : (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={yearByCat} onMouseMove={(s)=>{ const p=s?.activePayload?.[0]?.payload; setActiveYearBarName(p?.name||null); }} onMouseLeave={()=>setActiveYearBarName(null)}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(v)=>[formatCurrency(v), '金额']} />
+                        <Legend />
+                        <defs>
+                          <filter id="shadowBarYear" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="4" stdDeviation="0" floodColor="#0f172a" floodOpacity="0.18" /></filter>
+                        </defs>
+                        <Bar dataKey="amount" name="金额" isAnimationActive barSize={16} radius={[5,5,0,0]}>
+                          {yearByCat.map((entry,i)=> (
+                            <Cell key={i} fill={colorMap[entry.name]||'#999'} filter={activeYearBarName===entry.name? 'url(#shadowBarYear)': undefined} opacity={activeYearBarName===null || activeYearBarName===entry.name ? 1 : 0.55} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </Card>
+
+                <Card className="lg:col-span-3">
                   <div className="flex items-center gap-2 mb-4"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">消费统计</h2></div>
                   <div className="grid gap-6 md:grid-cols-2">
                     <div className="space-y-4">
