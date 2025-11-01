@@ -9,6 +9,7 @@ import {
   History,
   PieChart as PieIcon,
   LineChart as LineIcon,
+  BarChart3 as BarIcon,
   Pencil,
   Tag,
   ArrowUp,
@@ -245,6 +246,8 @@ export default function BudgetApp(){
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [historyJumpValue, setHistoryJumpValue] = useState(()=> toDateInputValue(new Date()));
   const [trendDays, setTrendDays] = useState(7);
+  const [selectedYearForMonthly, setSelectedYearForMonthly] = useState(()=> new Date().getFullYear());
+  const [selectedWeeklyMonth, setSelectedWeeklyMonth] = useState('recent');
   const [exportStart, setExportStart] = useState(()=> toISODate(startOfMonth(new Date())));
   const [exportEnd, setExportEnd] = useState(()=> toISODate(new Date()));
   const fileInputRef = useRef(null);
@@ -266,6 +269,7 @@ export default function BudgetApp(){
   const [activePieIndex, setActivePieIndex] = useState(-1);
   const [activeBarName, setActiveBarName] = useState(null);
   const [activeYearBarName, setActiveYearBarName] = useState(null);
+  const [activeWeeklyIndex, setActiveWeeklyIndex] = useState(-1);
 
   useEffect(()=> saveSettings(settings), [settings]);
   useEffect(()=> saveExpenses(expenses), [expenses]);
@@ -629,6 +633,108 @@ export default function BudgetApp(){
   const yearByCat = groupByCategory(expensesYear);
 
   const trendData = useMemo(()=> trendDaily(expensesMonth, trendDays), [expensesMonth, trendDays]);
+  const yearlySummary = useMemo(()=>{
+    const map = new Map();
+    for (const item of expenses){
+      const dt = new Date(item.ts);
+      if (!Number.isFinite(dt.getTime())) continue;
+      const year = dt.getFullYear();
+      map.set(year, (map.get(year)||0) + (item.amount || 0));
+    }
+    const currentYear = new Date().getFullYear();
+    if (!map.has(currentYear)) map.set(currentYear, 0);
+    const arr = Array.from(map.entries()).map(([year,total])=>({ year, total }));
+    arr.sort((a,b)=> a.year - b.year);
+    return arr;
+  }, [expenses]);
+  const yearlyChartData = useMemo(()=> yearlySummary.map(item=>({ name: `${item.year}`, amount: Number(item.total || 0) })), [yearlySummary]);
+  const availableYearsForMonthly = useMemo(()=> yearlySummary.map(item=>item.year), [yearlySummary]);
+  useEffect(()=>{
+    if (availableYearsForMonthly.length===0) return;
+    if (!availableYearsForMonthly.includes(selectedYearForMonthly)){
+      setSelectedYearForMonthly(availableYearsForMonthly[availableYearsForMonthly.length-1]);
+    }
+  }, [availableYearsForMonthly, selectedYearForMonthly]);
+  const monthlyChartData = useMemo(()=>{
+    const arr = Array.from({ length: 12 }, (_,i)=> ({ name: `${i+1}月`, amount: 0 }));
+    for (const item of expenses){
+      const dt = new Date(item.ts);
+      if (!Number.isFinite(dt.getTime())) continue;
+      if (dt.getFullYear() !== selectedYearForMonthly) continue;
+      const idx = dt.getMonth();
+      arr[idx].amount += item.amount || 0;
+    }
+    return arr.map(entry=> ({ ...entry, amount: Number(entry.amount || 0) }));
+  }, [expenses, selectedYearForMonthly]);
+  const weeklyMonthOptions = useMemo(()=>{
+    const set = new Map();
+    const nowDate = new Date();
+    const nowKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth()+1).padStart(2,'0')}`;
+    set.set(nowKey, { value: nowKey, year: nowDate.getFullYear(), month: nowDate.getMonth()+1 });
+    for (const item of expenses){
+      const dt = new Date(item.ts);
+      if (!Number.isFinite(dt.getTime())) continue;
+      const key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+      if (!set.has(key)) set.set(key, { value: key, year: dt.getFullYear(), month: dt.getMonth()+1 });
+    }
+    const arr = Array.from(set.values());
+    arr.sort((a,b)=> a.year===b.year ? a.month-b.month : a.year-b.year);
+    return arr.map(item=> ({ ...item, label: `${item.year}年${item.month}月` }));
+  }, [expenses]);
+  useEffect(()=>{
+    if (selectedWeeklyMonth==='recent') return;
+    if (!weeklyMonthOptions.some(opt=>opt.value===selectedWeeklyMonth)){
+      setSelectedWeeklyMonth('recent');
+    }
+  }, [weeklyMonthOptions, selectedWeeklyMonth]);
+  const weeklyPieData = useMemo(()=>{
+    if (selectedWeeklyMonth === 'recent'){
+      const nowDate = new Date();
+      const baseStart = startOfWeek(nowDate);
+      const segments = [];
+      for (let offset=3; offset>=0; offset--){
+        const startDate = new Date(baseStart);
+        startDate.setDate(startDate.getDate() - offset*7);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate()+6);
+        endDate.setHours(23,59,59,999);
+        const label = `${startDate.getMonth()+1}/${String(startDate.getDate()).padStart(2,'0')}~${endDate.getMonth()+1}/${String(endDate.getDate()).padStart(2,'0')}`;
+        const amount = expenses.reduce((acc,cur)=>{
+          if (cur.ts>=startDate.getTime() && cur.ts<=endDate.getTime()){
+            return acc + (cur.amount || 0);
+          }
+          return acc;
+        }, 0);
+        segments.push({ name: label, amount: Number(amount || 0) });
+      }
+      return segments;
+    }
+    const [yearStr, monthStr] = selectedWeeklyMonth.split('-');
+    const year = Number(yearStr);
+    const month = Number(monthStr);
+    const daysInSelectedMonth = new Date(year, month, 0).getDate();
+    const ranges = [
+      { startDay: 1, endDay: Math.min(7, daysInSelectedMonth) },
+      { startDay: 8, endDay: Math.min(14, daysInSelectedMonth) },
+      { startDay: 15, endDay: Math.min(21, daysInSelectedMonth) },
+      { startDay: 22, endDay: daysInSelectedMonth },
+    ].filter(range=> range.startDay <= daysInSelectedMonth);
+    return ranges.map(range=>{
+      const startDate = startOfDay(new Date(year, month-1, range.startDay));
+      const endDate = endOfDay(new Date(year, month-1, range.endDay));
+      const amount = expenses.reduce((acc,cur)=>{
+        if (cur.ts>=startDate.getTime() && cur.ts<=endDate.getTime()){
+          return acc + (cur.amount || 0);
+        }
+        return acc;
+      }, 0);
+      return { name: `${range.startDay}-${range.endDay}日`, amount: Number(amount || 0) };
+    });
+  }, [expenses, selectedWeeklyMonth]);
+  const yearlyChartHasData = useMemo(()=> yearlyChartData.some(item=>item.amount>0), [yearlyChartData]);
+  const monthlyChartHasData = useMemo(()=> monthlyChartData.some(item=>item.amount>0), [monthlyChartData]);
+  const weeklyPieHasData = useMemo(()=> weeklyPieData.some(item=>item.amount>0), [weeklyPieData]);
+  const weeklyPalette = ["#0ea5e9", "#22c55e", "#f97316", "#a855f7"];
   const boardStats = useMemo(()=>{
     const nowDate=new Date();
     const dayMs=24*60*60*1000;
@@ -888,6 +994,113 @@ export default function BudgetApp(){
                   </ResponsiveContainer>
                 </div>
               </Card>
+
+              <div className="grid gap-6 lg:grid-cols-3">
+                <Card className="lg:col-span-1">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BarIcon className="h-5 w-5" />
+                      <h2 className="font-semibold">每年消费金额</h2>
+                    </div>
+                  </div>
+                  {yearlyChartHasData ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={yearlyChartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                          <YAxis tickLine={false} axisLine={false} tickFormatter={(v)=>`¥${v}`} />
+                          <Tooltip formatter={(value)=>formatCurrency(value)} cursor={{ fill: "#f1f5f9" }} />
+                          <Bar dataKey="amount" name="金额" fill="#6366f1" radius={[10,10,0,0]} barSize={28} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">暂无数据</div>
+                  )}
+                </Card>
+
+                <Card className="lg:col-span-1">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <BarIcon className="h-5 w-5" />
+                      <h2 className="font-semibold">每月消费金额</h2>
+                    </div>
+                    <select
+                      value={selectedYearForMonthly}
+                      onChange={(ev)=>setSelectedYearForMonthly(Number(ev.target.value))}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-1 text-sm text-gray-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    >
+                      {availableYearsForMonthly.map(year=> (
+                        <option key={year} value={year}>{year}年</option>
+                      ))}
+                    </select>
+                  </div>
+                  {monthlyChartHasData ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={monthlyChartData}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                          <XAxis dataKey="name" tickLine={false} axisLine={false} />
+                          <YAxis tickLine={false} axisLine={false} tickFormatter={(v)=>`¥${v}`} />
+                          <Tooltip formatter={(value)=>formatCurrency(value)} cursor={{ fill: "#f1f5f9" }} />
+                          <Bar dataKey="amount" name="金额" fill="#0ea5e9" radius={[10,10,0,0]} barSize={20} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">所选年份暂无数据</div>
+                  )}
+                </Card>
+
+                <Card className="lg:col-span-1">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <PieIcon className="h-5 w-5" />
+                      <h2 className="font-semibold">每周消费金额</h2>
+                    </div>
+                    <select
+                      value={selectedWeeklyMonth}
+                      onChange={(ev)=>setSelectedWeeklyMonth(ev.target.value)}
+                      className="rounded-xl border border-gray-200 bg-white px-3 py-1 text-sm text-gray-600 shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
+                    >
+                      <option value="recent">最近四周</option>
+                      {weeklyMonthOptions.map(opt=> (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {weeklyPieHasData ? (
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            dataKey="amount"
+                            data={weeklyPieData}
+                            cx="50%"
+                            cy="50%"
+                            outerRadius={90}
+                            innerRadius={40}
+                            paddingAngle={2}
+                            activeIndex={activeWeeklyIndex >= 0 ? activeWeeklyIndex : undefined}
+                            onMouseEnter={(_,index)=>setActiveWeeklyIndex(index)}
+                            onMouseLeave={()=>setActiveWeeklyIndex(-1)}
+                            label
+                          >
+                            {weeklyPieData.map((entry,index)=>(
+                              <Cell key={entry.name} fill={weeklyPalette[index % weeklyPalette.length]} opacity={activeWeeklyIndex===-1 || activeWeeklyIndex===index ? 1 : 0.5} />
+                            ))}
+                          </Pie>
+                          <Tooltip formatter={(value)=>formatCurrency(value)} />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">所选时间暂无数据</div>
+                  )}
+                </Card>
+              </div>
 
               {/* 看板统计：周饼 + 月/年柱（细长条，阴影高亮） */}
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
