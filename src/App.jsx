@@ -133,7 +133,27 @@ function groupByCategory(list) {
 }
 const sum = (list)=> list.reduce((acc,e)=> acc+(e.amount||0), 0);
 function eachDayBetween(start, end){ const arr=[]; const d=new Date(startOfDay(start)); const e=new Date(startOfDay(end)); while (d<=e){ arr.push(new Date(d)); d.setDate(d.getDate()+1);} return arr; }
-function trendDaily(expenses, days){ const end=new Date(); const start=new Date(); start.setDate(end.getDate()-(days-1)); const daysArr=eachDayBetween(start,end); const byDate=new Map(); for (const e of expenses){ const iso=toISODate(e.ts); byDate.set(iso,(byDate.get(iso)||0)+(e.amount||0)); } return daysArr.map(d=>{ const iso=toISODate(d); return { date: iso.slice(5), amount: byDate.get(iso)||0 }; }); }
+function trendDaily(expenses, startDate, endDate){
+  if (!startDate || !endDate) return [];
+  const rangeStart = startOfDay(startDate);
+  const rangeEnd = endOfDay(endDate);
+  if (rangeStart > rangeEnd) return [];
+  const daysArr = eachDayBetween(rangeStart, rangeEnd);
+  const byDate = new Map();
+  const startMs = rangeStart.getTime();
+  const endMs = rangeEnd.getTime();
+  for (const e of expenses){
+    const ts = Number(e.ts);
+    if (!Number.isFinite(ts)) continue;
+    if (ts < startMs || ts > endMs) continue;
+    const iso = toISODate(ts);
+    byDate.set(iso, (byDate.get(iso)||0)+(e.amount||0));
+  }
+  return daysArr.map(d=>{
+    const iso = toISODate(d);
+    return { date: iso.slice(5), amount: byDate.get(iso)||0 };
+  });
+}
 
 function Badge({children,color}){ const bg=`${color}22`; const border=`${color}55`; return <span className="px-2 py-0.5 rounded-lg text-xs font-medium" style={{backgroundColor:bg,color,border:`1px solid ${border}`}}>{children}</span>; }
 function Card({ className="", children }){
@@ -245,7 +265,13 @@ export default function BudgetApp(){
 
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [historyJumpValue, setHistoryJumpValue] = useState(()=> toDateInputValue(new Date()));
-  const [trendDays, setTrendDays] = useState(7);
+  const [trendStart, setTrendStart] = useState(()=>{
+    const today = startOfDay(new Date());
+    const start = new Date(today);
+    start.setDate(start.getDate()-6);
+    return toISODate(start);
+  });
+  const [trendEnd, setTrendEnd] = useState(()=> toISODate(new Date()));
   const [selectedYearForMonthly, setSelectedYearForMonthly] = useState(()=> new Date().getFullYear());
   const [selectedWeeklyMonth, setSelectedWeeklyMonth] = useState('recent');
   const [exportStart, setExportStart] = useState(()=> toISODate(startOfMonth(new Date())));
@@ -292,6 +318,15 @@ export default function BudgetApp(){
       return { ...d, category: categories[0]?.name || '' };
     });
   }, [categories]);
+
+  useEffect(()=>{
+    const startDate = parseDateInput(trendStart);
+    const endDate = parseDateInput(trendEnd);
+    if (!startDate || !endDate) return;
+    if (startDate > endDate){
+      setTrendEnd(toISODate(startDate));
+    }
+  }, [trendStart, trendEnd]);
 
   // 时间范围（周/月统计仍基于今天所在周/月）
   const now=new Date();
@@ -632,7 +667,53 @@ export default function BudgetApp(){
   const monthByCat = groupByCategory(expensesMonth);
   const yearByCat = groupByCategory(expensesYear);
 
-  const trendData = useMemo(()=> trendDaily(expensesMonth, trendDays), [expensesMonth, trendDays]);
+  const trendRange = useMemo(()=>{
+    const startDate = parseDateInput(trendStart);
+    const endDate = parseDateInput(trendEnd);
+    if (!startDate || !endDate) return null;
+    const startDay = startOfDay(startDate);
+    const endDay = startOfDay(endDate);
+    if (startDay > endDay) return null;
+    return { start: startDay, end: endDay };
+  }, [trendStart, trendEnd]);
+
+  const trendRangeDays = trendRange
+    ? Math.floor((trendRange.end.getTime() - trendRange.start.getTime()) / (24 * 60 * 60 * 1000)) + 1
+    : 0;
+
+  const trendData = useMemo(
+    ()=> trendRange ? trendDaily(expenses, trendRange.start, trendRange.end) : [],
+    [expenses, trendRange]
+  );
+
+  const maxTrendDate = toISODate(new Date());
+
+  const isSevenActive = useMemo(()=>{
+    if (!trendRange) return false;
+    const today = startOfDay(new Date());
+    if (trendRange.end.getTime() !== today.getTime()) return false;
+    const expectedStart = new Date(today);
+    expectedStart.setDate(expectedStart.getDate()-6);
+    return trendRange.start.getTime() === expectedStart.getTime();
+  }, [trendRange]);
+
+  const isThirtyActive = useMemo(()=>{
+    if (!trendRange) return false;
+    const today = startOfDay(new Date());
+    if (trendRange.end.getTime() !== today.getTime()) return false;
+    const expectedStart = new Date(today);
+    expectedStart.setDate(expectedStart.getDate()-29);
+    return trendRange.start.getTime() === expectedStart.getTime();
+  }, [trendRange]);
+
+  function applyTrendPreset(days){
+    if (!(days>=1)) return;
+    const today = startOfDay(new Date());
+    const start = new Date(today);
+    start.setDate(start.getDate()-(days-1));
+    setTrendStart(toISODate(start));
+    setTrendEnd(toISODate(today));
+  }
   const yearlySummary = useMemo(()=>{
     const map = new Map();
     for (const item of expenses){
@@ -974,11 +1055,53 @@ export default function BudgetApp(){
             <div className="grid gap-6">
               {/* 趋势折线（7天/30天，每天合计） */}
               <Card>
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex items-center gap-2"><LineIcon className="w-5 h-5" /><h2 className="font-semibold">趋势（{trendDays} 天）</h2></div>
+                <div className="mb-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div className="flex items-center gap-2">
-                    <button className={cn("px-2 py-1 rounded-lg border", trendDays===7?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(7)}>7天</button>
-                    <button className={cn("px-2 py-1 rounded-lg border", trendDays===30?"bg-black text-white":"hover:bg-gray-50")} onClick={()=>setTrendDays(30)}>30天</button>
+                    <LineIcon className="w-5 h-5" />
+                    <h2 className="font-semibold">趋势（{trendRangeDays || 0} 天）</h2>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 md:ml-auto">
+                    <div className="flex flex-1 flex-wrap items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm sm:flex-none">
+                      <CalendarDays className="h-4 w-4 text-gray-400" />
+                      <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                        <input
+                          type="date"
+                          className="flex-1 min-w-[120px] border-0 bg-transparent p-0 text-sm text-gray-700 focus:outline-none focus:ring-0"
+                          value={trendStart}
+                          max={maxTrendDate}
+                          onChange={ev=>setTrendStart(ev.target.value)}
+                        />
+                        <span className="text-xs text-gray-400">至</span>
+                        <input
+                          type="date"
+                          className="flex-1 min-w-[120px] border-0 bg-transparent p-0 text-sm text-gray-700 focus:outline-none focus:ring-0"
+                          value={trendEnd}
+                          min={trendStart || undefined}
+                          max={maxTrendDate}
+                          onChange={ev=>setTrendEnd(ev.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className={cn(
+                          "rounded-xl border px-3 py-1.5 text-sm transition",
+                          isSevenActive ? "border-black bg-black text-white" : "bg-white hover:bg-gray-50"
+                        )}
+                        onClick={()=>applyTrendPreset(7)}
+                      >
+                        最近7天
+                      </button>
+                      <button
+                        className={cn(
+                          "rounded-xl border px-3 py-1.5 text-sm transition",
+                          isThirtyActive ? "border-black bg-black text-white" : "bg-white hover:bg-gray-50"
+                        )}
+                        onClick={()=>applyTrendPreset(30)}
+                      >
+                        最近30天
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="h-64">
